@@ -336,9 +336,12 @@ class GameState:
     MAX_SCORE = 5
     RESET_DELAY = 90
 
-    def __init__(self):
-        self.player1 = Player(200, GROUND_Y - Player.HEIGHT, RED, LIGHT_RED, CONTROLS_P1, facing_right=True, image_path=PLAYER1_IMAGE_PATH)
-        self.player2 = Player(750, GROUND_Y - Player.HEIGHT, BLUE, LIGHT_BLUE, CONTROLS_P2, facing_right=False, image_path=PLAYER2_IMAGE_PATH)
+    def __init__(self, p1_choice=0, p2_choice=1):
+        self.p1_choice = p1_choice
+        self.p2_choice = p2_choice
+
+        self.player1 = make_player(p1_choice, 200, GROUND_Y - Player.HEIGHT, CONTROLS_P1, True)
+        self.player2 = make_player(p2_choice, 750, GROUND_Y - Player.HEIGHT, CONTROLS_P2, False)
         self.ball = Ball(SCREEN_W // 2, GROUND_Y - 200)
         self.reset_timer = 0
         self.game_over = False
@@ -453,10 +456,99 @@ class GameState:
             surface.blit(winner_text, (SCREEN_W // 2 - winner_text.get_width() // 2, SCREEN_H // 2 - 40))
             surface.blit(restart_text, (SCREEN_W // 2 - restart_text.get_width() // 2, SCREEN_H // 2 + 20))
 
+CHARACTERS = [
+    ("Clássico", RED, LIGHT_RED, PLAYER1_IMAGE_PATH),
+    ("Azul", BLUE, LIGHT_BLUE, PLAYER2_IMAGE_PATH),
+    ("Verde", GREEN, (120, 220, 120), None),
+    ("Laranja", ORANGE, (255, 195, 120), None),
+    ("Cinza", DARK_GRAY, GRAY, None),
+]
+
+def make_player(choice_idx, x, y, controls, facing_right):
+    _, color, light_color, image_path = CHARACTERS[choice_idx % len(CHARACTERS)]
+    return Player(x, y, color, light_color, controls, facing_right=facing_right, image_path=image_path)
+
+class MenuState:
+    def __init__(self):
+        self.p1_choice = 0
+        self.p2_choice = 1
+        self.p1_ready = False
+        self.p2_ready = False
+
+    def handle_event(self, event):
+        if event.type != pygame.KEYDOWN:
+            return None
+
+        if event.key == pygame.K_ESCAPE:
+            pygame.quit()
+            sys.exit()
+
+        # Player 1
+        if event.key == pygame.K_a and not self.p1_ready:
+            self.p1_choice = (self.p1_choice - 1) % len(CHARACTERS)
+        elif event.key == pygame.K_d and not self.p1_ready:
+            self.p1_choice = (self.p1_choice + 1) % len(CHARACTERS)
+        elif event.key == pygame.K_w:
+            self.p1_ready = True
+
+        # Player 2
+        if event.key == pygame.K_LEFT and not self.p2_ready:
+            self.p2_choice = (self.p2_choice - 1) % len(CHARACTERS)
+        elif event.key == pygame.K_RIGHT and not self.p2_ready:
+            self.p2_choice = (self.p2_choice + 1) % len(CHARACTERS)
+        elif event.key == pygame.K_UP:
+            self.p2_ready = True
+
+        # Reset seleção
+        if event.key == pygame.K_r:
+            self.p1_ready = False
+            self.p2_ready = False
+
+        # Começar jogo
+        if event.key == pygame.K_RETURN and self.p1_ready and self.p2_ready:
+            return GameState(self.p1_choice, self.p2_choice)
+
+        return None
+
+    def draw(self, surface, font, big_font):
+        surface.fill(SKY_BLUE)
+
+        title = big_font.render("HEAD SOCCER 2D", True, WHITE)
+        surface.blit(title, (SCREEN_W // 2 - title.get_width() // 2, 40))
+
+        info = font.render("A/D escolhe J1 | ←/→ escolhe J2 | W e ↑ confirmam", True, BLACK)
+        surface.blit(info, (SCREEN_W // 2 - info.get_width() // 2, 100))
+
+        def draw_card(x, y, choice_idx, label, ready):
+            name, color, light_color, _ = CHARACTERS[choice_idx]
+
+            rect = pygame.Rect(x, y, 250, 200)
+            pygame.draw.rect(surface, DARK_GRAY, rect, border_radius=15)
+            pygame.draw.rect(surface, color, rect, 3, border_radius=15)
+
+            pygame.draw.circle(surface, color, (rect.centerx, y + 80), 35)
+            pygame.draw.circle(surface, light_color, (rect.centerx, y + 80), 35, 3)
+
+            txt_label = font.render(label, True, WHITE)
+            txt_name = font.render(name, True, YELLOW)
+            txt_ready = font.render("OK" if ready else "Escolher", True, GREEN if ready else RED)
+
+            surface.blit(txt_label, (rect.centerx - txt_label.get_width() // 2, y + 10))
+            surface.blit(txt_name, (rect.centerx - txt_name.get_width() // 2, y + 130))
+            surface.blit(txt_ready, (rect.centerx - txt_ready.get_width() // 2, y + 160))
+
+        draw_card(150, 200, self.p1_choice, "JOGADOR 1", self.p1_ready)
+        draw_card(600, 200, self.p2_choice, "JOGADOR 2", self.p2_ready)
+
+        if self.p1_ready and self.p2_ready:
+            start = big_font.render("ENTER para jogar", True, YELLOW)
+            surface.blit(start, (SCREEN_W // 2 - start.get_width() // 2, 450))
+
 
 # ============================================================
 #  LOOP PRINCIPAL
 # ============================================================
+
 def main():
     pygame.init()
     screen = pygame.display.set_mode((SCREEN_W, SCREEN_H))
@@ -466,7 +558,7 @@ def main():
     font = pygame.font.SysFont("Arial", 22, bold=True)
     big_font = pygame.font.SysFont("Arial", 42, bold=True)
 
-    game = GameState()
+    state = MenuState()
 
     while True:
         keys = pygame.key.get_pressed()
@@ -475,18 +567,28 @@ def main():
             if event.type == pygame.QUIT:
                 pygame.quit()
                 sys.exit()
-            if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_ESCAPE:
-                    pygame.quit()
-                    sys.exit()
-                if event.key == pygame.K_r:
-                    game = GameState()
 
-        game.update(keys)
-        game.draw(screen, font, big_font)
+            if isinstance(state, MenuState):
+                new_state = state.handle_event(event)
+                if new_state is not None:
+                    state = new_state
+
+            elif isinstance(state, GameState):
+                if event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_ESCAPE:
+                        pygame.quit()
+                        sys.exit()
+                    if event.key == pygame.K_r and state.game_over:
+                        state = GameState(state.p1_choice, state.p2_choice)
+
+        if isinstance(state, GameState):
+            state.update(keys)
+            state.draw(screen, font, big_font)
+        else:
+            state.draw(screen, font, big_font)
+
         pygame.display.flip()
         clock.tick(FPS)
-
 
 if __name__ == "__main__":
     main()
