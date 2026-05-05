@@ -8,9 +8,9 @@ import math
 # ============================================================
 SCREEN_W, SCREEN_H = 1000, 600
 FPS = 60
-GRAVITY = 0.6
+GRAVITY = 0.5
 GROUND_Y = 480
-BALL_RADIUS = 22
+BALL_RADIUS = 30
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ASSETS_DIR = os.path.join(BASE_DIR, "assets")
@@ -35,8 +35,8 @@ NET_COLOR  = (200, 200, 200)
 POST_COLOR = (230, 230, 230)
 
 # ─── Goleiras ───────────────────────────────────────────────
-GOAL_W  = 20
-GOAL_H  = 140
+GOAL_W  = 30
+GOAL_H  = 200
 GOAL1_X = 0
 GOAL2_X = SCREEN_W - GOAL_W
 GOAL_Y  = GROUND_Y - GOAL_H
@@ -60,13 +60,13 @@ CONTROLS_P2 = {
 #  CLASSE JOGADOR
 # ============================================================
 class Player:
-    WIDTH  = 50
-    HEIGHT = 70
-    SPEED  = 3.5
-    JUMP_FORCE   = -14   # pulo mais alto
-    KICK_RADIUS  = 55
-    KICK_FORCE   = 9
-    KICK_DURATION = 12
+    WIDTH  = 50 * 1.5 * 2
+    HEIGHT = 70 * 1.5
+    SPEED  = 4.2
+    JUMP_FORCE   = -13   # pulo mais alto
+    KICK_RADIUS  = 90
+    KICK_FORCE   = 8
+    KICK_DURATION = 15
 
     def __init__(self, x, y, color, light_color, controls, facing_right=True, image_path=None):
         self.x = float(x)
@@ -201,8 +201,8 @@ class Player:
 #  CLASSE BOLA
 # ============================================================
 class Ball:
-    FRICTION = 0.99
-    BOUNCE   = 0.50
+    FRICTION = 0.80
+    BOUNCE   = 0.80
 
     def __init__(self, x, y):
         self.reset(x, y)
@@ -216,7 +216,7 @@ class Ball:
         self.angle = 0.0
 
     def update(self):
-        self.vy += GRAVITY * 0.35  # queda mais lenta
+        self.vy += GRAVITY * 0.50  # queda mais lenta
         self.x += self.vx
         self.y += self.vy
         self.angle += self.vx * 1.5
@@ -243,27 +243,56 @@ class Ball:
                 self.vx = -abs(self.vx) * self.BOUNCE
 
     def collide_with_player(self, player):
-        bx, by = self.x, self.y
-        hx = player.x + player.WIDTH / 2
-        hy = player.y + 26
-        head_r = 26
+        rect = player.rect
 
-        dist = math.hypot(bx - hx, by - hy)
-        min_dist = BALL_RADIUS + head_r
+        closest_x = max(rect.left, min(self.x, rect.right))
+        closest_y = max(rect.top, min(self.y, rect.bottom))
 
-        if dist < min_dist and dist > 0:
-            nx = (bx - hx) / dist
-            ny = (by - hy) / dist
-            overlap = min_dist - dist
-            self.x += nx * overlap
-            self.y += ny * overlap
+        dx = self.x - closest_x
+        dy = self.y - closest_y
+        dist_sq = dx * dx + dy * dy
 
-            rel_vx = self.vx - player.vx
-            rel_vy = self.vy - player.vy
-            dot = rel_vx * nx + rel_vy * ny
-            if dot < 0:
-                self.vx -= dot * nx * 1.4
-                self.vy -= dot * ny * 1.4
+        if dist_sq == 0:
+            if not rect.collidepoint(self.x, self.y):
+                return
+
+            distances = {
+                "left": self.x - rect.left,
+                "right": rect.right - self.x,
+                "top": self.y - rect.top,
+                "bottom": rect.bottom - self.y,
+            }
+            side = min(distances, key=distances.get)
+
+            if side == "left":
+                nx, ny = -1, 0
+                overlap = BALL_RADIUS + distances["left"]
+            elif side == "right":
+                nx, ny = 1, 0
+                overlap = BALL_RADIUS + distances["right"]
+            elif side == "top":
+                nx, ny = 0, -1
+                overlap = BALL_RADIUS + distances["top"]
+            else:
+                nx, ny = 0, 1
+                overlap = BALL_RADIUS + distances["bottom"]
+        elif dist_sq < BALL_RADIUS * BALL_RADIUS:
+            dist = math.sqrt(dist_sq)
+            nx = dx / dist
+            ny = dy / dist
+            overlap = BALL_RADIUS - dist
+        else:
+            return
+
+        self.x += nx * overlap
+        self.y += ny * overlap
+
+        rel_vx = self.vx - player.vx
+        rel_vy = self.vy - player.vy
+        dot = rel_vx * nx + rel_vy * ny
+        if dot < 0:
+            self.vx -= dot * nx * 1.4
+            self.vy -= dot * ny * 1.4
 
     def draw(self, surface):
         ix, iy = int(self.x), int(self.y)
@@ -274,17 +303,32 @@ class Ball:
             rect = rotated.get_rect(center=(ix, iy))
             surface.blit(rotated, rect)
         else:
-            pygame.draw.circle(surface, YELLOW, (ix, iy), r)
-            pygame.draw.circle(surface, ORANGE, (ix, iy), r, 3)
-            for i in range(4):
-                a = math.radians(self.angle + i * 45)
-                x1 = ix + int((r - 6) * math.cos(a))
-                y1 = iy + int((r - 6) * math.sin(a))
-                x2 = ix + int((r - 14) * math.cos(a + math.pi))
-                y2 = iy + int((r - 14) * math.sin(a + math.pi))
-                pygame.draw.line(surface, DARK_GRAY, (x1, y1), (x2, y2), 2)
+            pygame.draw.circle(surface, WHITE, (ix, iy), r)
+            pygame.draw.circle(surface, BLACK, (ix, iy), r, 3)
 
+            center_points = []
+            for i in range(5):
+                a = math.radians(self.angle + 18 + i * 72)
+                rr = r * 0.38
+                center_points.append((
+                    ix + int(rr * math.cos(a)),
+                    iy + int(rr * math.sin(a))
+                ))
+            pygame.draw.polygon(surface, DARK_GRAY, center_points)
 
+            for i in range(5):
+                a = math.radians(self.angle + i * 72)
+                cx = ix + int(r * 0.58 * math.cos(a))
+                cy = iy + int(r * 0.58 * math.sin(a))
+
+                patch = []
+                for j in range(5):
+                    aa = math.radians(self.angle * 0.25 + i * 72 + 36 + j * 72)
+                    patch.append((
+                        cx + int(8 * math.cos(aa)),
+                        cy + int(8 * math.sin(aa))
+                    ))
+                pygame.draw.polygon(surface, BLACK, patch)
 # ============================================================
 #  ESTADO DO JOGO
 # ============================================================
