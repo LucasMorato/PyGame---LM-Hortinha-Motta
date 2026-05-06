@@ -1347,7 +1347,8 @@ class GameState:
 # ============================================================
 def main():
     pygame.init()
-    screen = pygame.display.set_mode((SCREEN_W, SCREEN_H))
+    # SCALED garante 1000x600 pixel-perfect mesmo em telas Retina/HiDPI
+    screen = pygame.display.set_mode((SCREEN_W, SCREEN_H), pygame.SCALED, vsync=1)
     pygame.display.set_caption("HEAD SOCCER 2D — PIXEL EDITION")
     clock  = pygame.time.Clock()
 
