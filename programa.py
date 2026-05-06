@@ -16,8 +16,12 @@ BALL_RADIUS = 30
 
 BASE_DIR   = os.path.dirname(os.path.abspath(__file__))
 ASSETS_DIR = os.path.join(BASE_DIR, "assets")
+PERSONAGENS_DIR = os.path.join(os.path.dirname(BASE_DIR), "Personagens")
 PLAYER1_IMAGE_PATH = os.path.join(ASSETS_DIR, "player1.png")
 PLAYER2_IMAGE_PATH = os.path.join(ASSETS_DIR, "player2.png")
+
+def _portrait_path(filename):
+    return os.path.join(PERSONAGENS_DIR, filename)
 
 # ─── Paleta Retro/Pixel ──────────────────────────────────────
 BLACK        = (  0,   0,   0)
@@ -48,9 +52,11 @@ STADIUM_COL  = ( 22,  22,  55)
 CROWD_COL    = ( 28,  28,  65)
 
 # ─── Goleiras ────────────────────────────────────────────────
-GOAL_W = 30
-GOAL_H = 200
-GOAL_Y = GROUND_Y - GOAL_H
+GOAL_W      = 70                      # Profundidade visual do gol
+GOAL_H      = 230                     # Altura do gol (mais alto p/ destaque)
+GOAL_Y      = GROUND_Y - GOAL_H
+POST_THICK  = 6                       # Espessura visual da trave
+DEPTH_TOP   = 14                      # Quanto o "fundo" do gol é mais baixo (perspectiva)
 
 # ─── Controles ───────────────────────────────────────────────
 CONTROLS_P1 = {"left": pygame.K_a, "right": pygame.K_d, "jump": pygame.K_w, "kick": pygame.K_q}
@@ -136,25 +142,80 @@ def _spr(head, body, foot):
     return {"H": head, "B": body, "L": foot, "R": foot}
 
 CHARACTERS = [
-    {"name": "RED KICK",  "color": RED,       "light": LIGHT_RED,
-     "sprite": _spr(LIGHT_RED,          RED,            (160, 20, 20)),
-     "image": PLAYER1_IMAGE_PATH},
-    {"name": "TURBO",     "color": BLUE,      "light": LIGHT_BLUE,
-     "sprite": _spr(LIGHT_BLUE,         BLUE,           (20, 40, 160)),
-     "image": PLAYER2_IMAGE_PATH},
-    {"name": "VOLT",      "color": (0,150,45), "light": GREEN_NEON,
-     "sprite": _spr(GREEN_NEON,         (0, 130, 40),   (0, 90, 25)),
-     "image": None},
-    {"name": "BLAZE",     "color": ORANGE,    "light": (255,195,80),
-     "sprite": _spr((255, 195, 80),     ORANGE,         (180, 70, 0)),
-     "image": None},
-    {"name": "SHADOW",    "color": PURPLE,    "light": (170,90,235),
-     "sprite": _spr((170, 90, 235),     PURPLE,         (55, 5, 115)),
-     "image": None},
-    {"name": "ICE",       "color": CYAN,      "light": (195,235,255),
-     "sprite": _spr((195, 235, 255),    CYAN,           (0, 140, 170)),
-     "image": None},
+    {"name": "CR7",        "color": GOLD,            "light": YELLOW,
+     "sprite":   _spr(YELLOW,           GOLD,            (180, 130, 0)),
+     "image":    PLAYER1_IMAGE_PATH,
+     "portrait": _portrait_path("CR7.jpeg")},
+
+    {"name": "MESSI",      "color": LIGHT_BLUE,      "light": (185, 220, 255),
+     "sprite":   _spr((185, 220, 255),  LIGHT_BLUE,      (40, 80, 200)),
+     "image":    PLAYER2_IMAGE_PATH,
+     "portrait": _portrait_path("Messi.jpeg")},
+
+    {"name": "MBAPPE",     "color": (60, 80, 200),   "light": (140, 170, 255),
+     "sprite":   _spr((140, 170, 255),  (60, 80, 200),   (20, 30, 130)),
+     "image":    None,
+     "portrait": _portrait_path("Mbappe.jpeg")},
+
+    {"name": "HAALAND",    "color": (140, 220, 230), "light": (200, 240, 250),
+     "sprite":   _spr((200, 240, 250),  (140, 220, 230), (40, 130, 170)),
+     "image":    None,
+     "portrait": _portrait_path("Haaland.jpeg")},
+
+    {"name": "YAMAL",      "color": RED,             "light": LIGHT_RED,
+     "sprite":   _spr(LIGHT_RED,        RED,             (140, 20, 20)),
+     "image":    None,
+     "portrait": _portrait_path("Yamal.jpeg")},
+
+    {"name": "KANE",       "color": (210, 215, 225), "light": (240, 240, 250),
+     "sprite":   _spr((240, 240, 250),  (210, 215, 225), (110, 115, 135)),
+     "image":    None,
+     "portrait": _portrait_path("Kane.jpeg")},
+
+    {"name": "RONY",       "color": (10, 130, 50),   "light": GREEN_NEON,
+     "sprite":   _spr(GREEN_NEON,       (10, 130, 50),   (5, 70, 25)),
+     "image":    None,
+     "portrait": _portrait_path("Rony.jpeg")},
+
+    {"name": "PEDRO RAUL", "color": (45, 45, 55),    "light": (180, 180, 195),
+     "sprite":   _spr((180, 180, 195),  (45, 45, 55),    (15, 15, 25)),
+     "image":    None,
+     "portrait": _portrait_path("Pedro Raul.jpeg")},
+
+    {"name": "APODI",      "color": ORANGE,          "light": (255, 195, 80),
+     "sprite":   _spr((255, 195, 80),   ORANGE,          (180, 70, 0)),
+     "image":    None,
+     "portrait": _portrait_path("Apodi.jpeg")},
+
+    {"name": "CEDRIC",     "color": PURPLE,          "light": (170, 90, 235),
+     "sprite":   _spr((170, 90, 235),   PURPLE,          (55, 5, 115)),
+     "image":    None,
+     "portrait": _portrait_path("Cedric.jpeg")},
+
+    {"name": "TOGURO",     "color": (220, 30, 130),  "light": (255, 130, 200),
+     "sprite":   _spr((255, 130, 200),  (220, 30, 130),  (130, 0, 70)),
+     "image":    None,
+     "portrait": _portrait_path("Toguro.jpeg")},
 ]
+
+
+# ─── Cache de portraits (carregado sob demanda) ─────────────
+_PORTRAIT_CACHE = {}
+
+def get_portrait(path, size=(130, 150)):
+    if not path:
+        return None
+    key = (path, size)
+    if key not in _PORTRAIT_CACHE:
+        try:
+            if os.path.exists(path):
+                img = pygame.image.load(path).convert()
+                _PORTRAIT_CACHE[key] = pygame.transform.smoothscale(img, size)
+            else:
+                _PORTRAIT_CACHE[key] = None
+        except Exception:
+            _PORTRAIT_CACHE[key] = None
+    return _PORTRAIT_CACHE[key]
 
 
 # ============================================================
@@ -410,6 +471,7 @@ class Ball:
             self.y  = float(BALL_RADIUS)
             self.vy = abs(self.vy) * self.BOUNCE
 
+        # ─── Parede acima do gol (não deixa a bola "passar por cima") ──
         if self.x - BALL_RADIUS <= GOAL_W and self.y + BALL_RADIUS < GOAL_Y:
             self.x  = GOAL_W + BALL_RADIUS
             self.vx = abs(self.vx) * self.BOUNCE
@@ -417,6 +479,45 @@ class Ball:
         if self.x + BALL_RADIUS >= SCREEN_W - GOAL_W and self.y + BALL_RADIUS < GOAL_Y:
             self.x  = SCREEN_W - GOAL_W - BALL_RADIUS
             self.vx = -abs(self.vx) * self.BOUNCE
+
+        # ─── Travessão (crossbar): canto superior do gol ───────────────
+        # Se a bola está descendo perto da quina (x≈GOAL_W, y≈GOAL_Y),
+        # rebate como se fosse a trave/travessão.
+        for corner_x, sign in ((GOAL_W, 1), (SCREEN_W - GOAL_W, -1)):
+            dx = self.x - corner_x
+            dy = self.y - GOAL_Y
+            # Só consideramos a quina pelo lado do campo
+            if sign * dx >= -POST_THICK:
+                dist_sq = dx*dx + dy*dy
+                r = BALL_RADIUS + POST_THICK // 2
+                if dist_sq < r * r and dist_sq > 0.01:
+                    dist = math.sqrt(dist_sq)
+                    nx = dx / dist
+                    ny = dy / dist
+                    overlap = r - dist
+                    self.x += nx * overlap
+                    self.y += ny * overlap
+                    vn = self.vx * nx + self.vy * ny
+                    if vn < 0:
+                        self.vx -= 2 * vn * nx * self.BOUNCE
+                        self.vy -= 2 * vn * ny * self.BOUNCE
+
+        # ─── Travessão (parte horizontal dentro do gol) ────────────────
+        # Quando a bola está dentro do gol e tenta subir, bate no travessão.
+        if self.x < GOAL_W and self.y - BALL_RADIUS < GOAL_Y:
+            self.y  = float(GOAL_Y + BALL_RADIUS)
+            self.vy = abs(self.vy) * self.BOUNCE
+        if self.x > SCREEN_W - GOAL_W and self.y - BALL_RADIUS < GOAL_Y:
+            self.y  = float(GOAL_Y + BALL_RADIUS)
+            self.vy = abs(self.vy) * self.BOUNCE
+
+        # ─── Fundo da rede (impede bola de sair pela borda) ────────────
+        if self.x - BALL_RADIUS <= 0:
+            self.x  = float(BALL_RADIUS)
+            self.vx = abs(self.vx) * self.BOUNCE * 0.4
+        if self.x + BALL_RADIUS >= SCREEN_W:
+            self.x  = float(SCREEN_W - BALL_RADIUS)
+            self.vx = -abs(self.vx) * self.BOUNCE * 0.4
 
     def collide_with_player(self, player):
         rect = player.collision_rect
@@ -680,23 +781,42 @@ class CharSelectState:
         lbl = f_sm.render(label, False, WHITE)
         surface.blit(lbl, (rect.centerx - lbl.get_width()//2, rect.top + 10))
 
-        bob   = int(4 * math.sin(math.radians(self.anim)))
-        spr_y = rect.top + 110 + bob
-        halo  = pygame.Surface((80, 80), pygame.SRCALPHA)
-        pygame.draw.ellipse(halo, (*ch["color"], 45), (0, 0, 80, 80))
-        surface.blit(halo, (rect.centerx - 40, spr_y - 40))
-        draw_pixel_sprite(surface, rect.centerx, spr_y, ch["sprite"], scale=2)
+        bob       = int(3 * math.sin(math.radians(self.anim)))
+        portrait  = get_portrait(ch.get("portrait"), size=(110, 125))
+
+        if portrait is not None:
+            pw, ph    = portrait.get_size()
+            ptx       = rect.centerx - pw // 2
+            pty       = rect.top + 32 + bob
+            halo      = pygame.Surface((pw + 24, ph + 24), pygame.SRCALPHA)
+            pygame.draw.rect(halo, (*ch["color"], 70), (0, 0, pw + 24, ph + 24))
+            surface.blit(halo, (ptx - 12, pty - 12))
+            surface.blit(portrait, (ptx, pty))
+            pygame.draw.rect(surface, ch["color"], (ptx, pty, pw, ph), 3)
+            pygame.draw.rect(surface, WHITE,        (ptx, pty, pw, ph), 1)
+            for cx, cy in [(ptx-2, pty-2), (ptx+pw-2, pty-2),
+                           (ptx-2, pty+ph-2), (ptx+pw-2, pty+ph-2)]:
+                pygame.draw.rect(surface, WHITE, (cx, cy, 4, 4))
+            arrow_y = pty + ph // 2
+        else:
+            spr_y = rect.top + 110 + bob
+            halo  = pygame.Surface((80, 80), pygame.SRCALPHA)
+            pygame.draw.ellipse(halo, (*ch["color"], 45), (0, 0, 80, 80))
+            surface.blit(halo, (rect.centerx - 40, spr_y - 40))
+            draw_pixel_sprite(surface, rect.centerx, spr_y, ch["sprite"], scale=2)
+            arrow_y = spr_y
 
         name_col = YELLOW if flash > 0 else ch["light"]
-        nm  = f_md.render(ch["name"], False, name_col)
+        nm   = f_md.render(ch["name"], False, name_col)
         nm_s = f_md.render(ch["name"], False, PIXEL_SHADOW)
-        surface.blit(nm_s, (rect.centerx - nm.get_width()//2 + 2, rect.top + 192))
-        surface.blit(nm,   (rect.centerx - nm.get_width()//2,     rect.top + 190))
+        ny   = rect.top + 167
+        surface.blit(nm_s, (rect.centerx - nm.get_width()//2 + 2, ny + 2))
+        surface.blit(nm,   (rect.centerx - nm.get_width()//2,     ny))
 
         if not ready:
             for arrow_txt, ax in [("<", rect.left+8), (">", rect.right-22)]:
                 at = f_md.render(arrow_txt, False, ch["color"])
-                surface.blit(at, (ax, spr_y - at.get_height()//2))
+                surface.blit(at, (ax, arrow_y - at.get_height()//2))
 
         st_rect = pygame.Rect(rect.left+8, rect.bottom-38, rect.width-16, 28)
         if ready:
@@ -796,65 +916,220 @@ class GameState:
     # ── Field surface ──────────────────────────────────────────
     def _make_field(self):
         surf = pygame.Surface((SCREEN_W, SCREEN_H))
-        surf.fill(STADIUM_COL)
 
-        crowd_h = GROUND_Y - GOAL_H - 20
-        for row in range(0, crowd_h, 8):
-            for col in range(0, SCREEN_W, 8):
-                shade = random.choice([CROWD_COL, BG_MID, (25, 25, 60)])
-                pygame.draw.rect(surf, shade, (col, row, 7, 7))
+        # ─── Céu / fundo do estádio (gradiente) ────────────────
+        sky_h = 50
+        for y in range(sky_h):
+            t = y / sky_h
+            r = int(8  + 14 * t)
+            g = int(8  + 18 * t)
+            b = int(28 + 38 * t)
+            pygame.draw.line(surf, (r, g, b), (0, y), (SCREEN_W, y))
 
-        pygame.draw.rect(surf, (15, 15, 40), (0, 0, SCREEN_W, 30))
+        # Estrelinhas no céu
+        rng = random.Random(1337)   # determinístico para não tremer
+        for _ in range(70):
+            sx = rng.randint(0, SCREEN_W-1)
+            sy = rng.randint(0, sky_h-1)
+            sb = rng.randint(120, 220)
+            pygame.draw.rect(surf, (sb, sb, sb), (sx, sy, 1, 1))
 
-        for lx in [60, 200, 420, 580, 800, 940]:
-            pygame.draw.rect(surf, (70, 70, 55),     (lx-4, 8,  8, 22))
-            pygame.draw.ellipse(surf, (255, 240, 160), (lx-22, 4, 44, 18))
+        # ─── Refletores (estádio) ──────────────────────────────
+        for lx in [80, 250, 500, 750, 920]:
+            pygame.draw.rect(surf, (40, 40, 55), (lx-2, sky_h, 4, 10))
+            pygame.draw.rect(surf, (55, 60, 78), (lx-22, sky_h - 8, 44, 10))
+            pygame.draw.rect(surf, (90, 95, 115),(lx-22, sky_h - 8, 44, 2))
+            for li in range(4):
+                pygame.draw.rect(surf, (255, 250, 200),
+                                 (lx - 19 + li*9, sky_h - 6, 7, 4))
+            # Brilho difuso
+            glow = pygame.Surface((110, 80), pygame.SRCALPHA)
+            for r in range(40, 0, -2):
+                a = int(70 * (r / 40))
+                pygame.draw.circle(glow, (255, 245, 180, a // 5), (55, 35), r)
+            surf.blit(glow, (lx - 55, sky_h - 30))
 
-        field_top = GROUND_Y - GOAL_H - 20
-        sw        = 100
+        # ─── Arquibancada em 3 níveis ──────────────────────────
+        crowd_top = sky_h + 12
+        crowd_bot = GROUND_Y - GOAL_H - 30
+        tier_h    = (crowd_bot - crowd_top) // 3
+
+        crowd_palette = [
+            (210, 60, 60), (60, 80, 210), (230, 200, 50),
+            (60, 180, 60), (220, 220, 220), (180, 80, 200),
+            (40, 40, 40), (210, 110, 30), (40, 200, 220),
+        ]
+        for tier in range(3):
+            ty1 = crowd_top + tier * tier_h
+            ty2 = ty1 + tier_h - 5
+            shade = 0.5 + 0.18 * tier
+            tier_bg = (int(20*shade), int(20*shade), int(48*shade))
+            pygame.draw.rect(surf, tier_bg, (0, ty1, SCREEN_W, tier_h - 5))
+
+            for cx in range(0, SCREEN_W, 5):
+                for cy in range(ty1+2, ty2-1, 4):
+                    if rng.random() > 0.32:
+                        base = crowd_palette[rng.randint(0, len(crowd_palette)-1)]
+                        fade = 0.45 + 0.18 * tier
+                        c = tuple(int(v * fade) for v in base)
+                        pygame.draw.rect(surf, c, (cx, cy, 3, 2))
+            pygame.draw.rect(surf, (3, 3, 10), (0, ty2, SCREEN_W, 4))
+
+        # ─── Placas de publicidade (cima do campo) ─────────────
+        ad_y = crowd_bot - 4
+        ad_h = 22
+        pygame.draw.rect(surf, (5, 5, 15), (0, ad_y, SCREEN_W, ad_h))
+        ad_palette = [(220, 50, 50), (50, 100, 220), (240, 200, 0),
+                      (50, 180, 80), (180, 80, 180), (210, 110, 30),
+                      (40, 200, 220), (240, 240, 240)]
+        ad_count = 8
+        ad_w = SCREEN_W // ad_count
+        for i in range(ad_count):
+            ax = i * ad_w
+            ac = ad_palette[i % len(ad_palette)]
+            pygame.draw.rect(surf, ac, (ax+2, ad_y+3, ad_w-4, ad_h-6))
+            pygame.draw.rect(surf, (255, 255, 255, 80),
+                             (ax+2, ad_y+3, ad_w-4, 2))
+
+        # ─── Gramado ───────────────────────────────────────────
+        field_top = ad_y + ad_h
+        pygame.draw.rect(surf, FIELD_DARK,
+                         (0, field_top, SCREEN_W, SCREEN_H - field_top))
+
+        # Listras do gramado
+        sw = 80
         for i in range(0, SCREEN_W, sw*2):
-            pygame.draw.rect(surf, FIELD_LITE, (i,    field_top, sw, SCREEN_H - field_top))
-            pygame.draw.rect(surf, FIELD_DARK, (i+sw, field_top, sw, SCREEN_H - field_top))
+            pygame.draw.rect(surf, FIELD_LITE,
+                             (i, field_top, sw, SCREEN_H - field_top))
 
+        # Textura de grama (pontinhos)
+        for _ in range(700):
+            gx = rng.randint(0, SCREEN_W-1)
+            gy = rng.randint(field_top, SCREEN_H-1)
+            gc = rng.choice([(20, 90, 35), (28, 100, 40),
+                             (15, 70, 25), (32, 110, 45)])
+            pygame.draw.rect(surf, gc, (gx, gy, 2, 2))
+
+        # ─── Linhas do campo ───────────────────────────────────
         lc = LINE_COL
-        pygame.draw.rect(surf, lc, (SCREEN_W//2-1, GROUND_Y-GOAL_H, 3, GOAL_H+120))
-        pygame.draw.circle(surf, lc, (SCREEN_W//2, GROUND_Y+50), 60, 2)
-        pygame.draw.rect(surf, lc,   (SCREEN_W//2-4, GROUND_Y+46, 8, 8))
-        pygame.draw.rect(surf, lc,   (GOAL_W, GROUND_Y, SCREEN_W-GOAL_W*2, 3))
-        for side_x in [GOAL_W, SCREEN_W-GOAL_W-110]:
-            pygame.draw.rect(surf, lc, (side_x, GROUND_Y-80, 110, 80), 2)
 
-        for left in (True, False):
-            gx  = 0 if left else SCREEN_W - GOAL_W
-            net = pygame.Surface((GOAL_W, GOAL_H), pygame.SRCALPHA)
-            net.fill((20, 20, 40, 190))
-            for ry in range(0, GOAL_H, 14):
-                pygame.draw.rect(net, (*NET_COL, 160), (0, ry, GOAL_W, 1))
-            for rx in range(0, GOAL_W, 7):
-                pygame.draw.rect(net, (*NET_COL, 160), (rx, 0, 1, GOAL_H))
-            surf.blit(net, (gx, GOAL_Y))
-            pygame.draw.rect(surf, GOAL_SILVER, (gx, GOAL_Y,     GOAL_W, 5))
-            pygame.draw.rect(surf, GOAL_DARK,   (gx, GOAL_Y+5,   GOAL_W, 2))
-            pw  = 5
-            px2 = GOAL_W - pw if left else 0
-            pygame.draw.rect(surf, GOAL_SILVER, (gx+px2, GOAL_Y, pw, GOAL_H))
-            pygame.draw.rect(surf, GOAL_DARK,   (gx+px2+(pw-2 if left else 0), GOAL_Y, 2, GOAL_H))
-            pygame.draw.rect(surf, GOAL_SILVER, (gx, GROUND_Y-5, GOAL_W, 5))
+        # Linha lateral inferior (ground)
+        pygame.draw.rect(surf, lc,
+                         (GOAL_W, GROUND_Y, SCREEN_W - 2*GOAL_W, 3))
+        # Linha de meio-campo (vertical)
+        pygame.draw.rect(surf, lc,
+                         (SCREEN_W//2 - 1, field_top + 6, 3, GROUND_Y - field_top - 4))
+
+        # Círculo central
+        cc_y = (field_top + GROUND_Y) // 2 + 30
+        pygame.draw.circle(surf, lc, (SCREEN_W//2, cc_y), 55, 2)
+        pygame.draw.rect(surf, lc, (SCREEN_W//2 - 3, cc_y - 3, 6, 6))
+
+        # Grandes áreas (estilizadas: retângulos a partir das traves)
+        pb_w, pb_h = 130, 100
+        ga_w, ga_h = 60,  55
+        for is_left in (True, False):
+            base_x = GOAL_W if is_left else SCREEN_W - GOAL_W - pb_w
+            base_x_g = GOAL_W if is_left else SCREEN_W - GOAL_W - ga_w
+            # Grande área
+            pygame.draw.rect(surf, lc, (base_x, GROUND_Y - pb_h, pb_w, pb_h), 2)
+            # Pequena área
+            pygame.draw.rect(surf, lc, (base_x_g, GROUND_Y - ga_h, ga_w, ga_h), 2)
+            # Marca do pênalti
+            spot_x = (GOAL_W + 80) if is_left else (SCREEN_W - GOAL_W - 80)
+            pygame.draw.rect(surf, lc, (spot_x - 2, GROUND_Y - pb_h//2 - 2, 4, 4))
+
+        # ─── Goleiras com profundidade ─────────────────────────
+        self._draw_goal(surf, is_left=True)
+        self._draw_goal(surf, is_left=False)
 
         return surf
 
+    def _draw_goal(self, surf, is_left):
+        """Desenha o gol em perspectiva: travessão, trave, rede e fundo."""
+        if is_left:
+            gx       = 0
+            front_x  = GOAL_W
+            back_x   = 0
+            post_x   = GOAL_W - POST_THICK
+        else:
+            gx       = SCREEN_W - GOAL_W
+            front_x  = SCREEN_W - GOAL_W
+            back_x   = SCREEN_W
+            post_x   = SCREEN_W - GOAL_W
+
+        # Fundo escuro do interior do gol
+        pygame.draw.rect(surf, (10, 16, 26), (gx, GOAL_Y, GOAL_W, GOAL_H))
+
+        # Pontos da rede (perspectiva: o "fundo" é mais alto que a frente)
+        f_top_y = GOAL_Y
+        f_bot_y = GROUND_Y
+        b_top_y = GOAL_Y + DEPTH_TOP
+        b_bot_y = GROUND_Y - 2
+
+        # Polígono da rede (gradiente de cor)
+        net_poly = [(front_x, f_top_y), (front_x, f_bot_y),
+                    (back_x,  b_bot_y), (back_x,  b_top_y)]
+        pygame.draw.polygon(surf, (22, 32, 48), net_poly)
+
+        # ── Linhas verticais da rede (front -> back) ──
+        verts = 7
+        for i in range(1, verts):
+            t = i / verts
+            x_pos  = front_x + (back_x  - front_x) * t
+            top_y  = f_top_y + (b_top_y - f_top_y) * t
+            bot_y  = f_bot_y + (b_bot_y - f_bot_y) * t
+            pygame.draw.line(surf, (55, 70, 100),
+                             (int(x_pos), int(top_y)),
+                             (int(x_pos), int(bot_y)), 1)
+
+        # ── Linhas horizontais da rede (com perspectiva) ──
+        horiz = 9
+        for i in range(1, horiz):
+            t = i / horiz
+            f_y = f_top_y + (f_bot_y - f_top_y) * t
+            b_y = b_top_y + (b_bot_y - b_top_y) * t
+            pygame.draw.line(surf, (55, 70, 100),
+                             (front_x, int(f_y)),
+                             (back_x,  int(b_y)), 1)
+
+        # ── Bordas em perspectiva (linhas-guia 3D) ──
+        pygame.draw.line(surf, (95, 105, 135),
+                         (front_x, f_top_y), (back_x, b_top_y), 1)
+        pygame.draw.line(surf, (95, 105, 135),
+                         (front_x, f_bot_y), (back_x, b_bot_y), 1)
+
+        # ── Travessão ──
+        cb_h = 6
+        cb_y = GOAL_Y - cb_h // 2
+        pygame.draw.rect(surf, GOAL_SILVER, (gx, cb_y, GOAL_W, cb_h))
+        pygame.draw.rect(surf, WHITE,       (gx, cb_y, GOAL_W, 1))
+        pygame.draw.rect(surf, GOAL_DARK,   (gx, cb_y + cb_h - 2, GOAL_W, 2))
+
+        # ── Trave frontal (vertical, na frente do gol) ──
+        pygame.draw.rect(surf, GOAL_SILVER, (post_x, GOAL_Y, POST_THICK, GOAL_H))
+        pygame.draw.rect(surf, WHITE,       (post_x, GOAL_Y, 1,          GOAL_H))
+        pygame.draw.rect(surf, GOAL_DARK,
+                         (post_x + POST_THICK - 1, GOAL_Y, 1, GOAL_H))
+
+        # ── Sombra circular sob a base da trave (no chão) ──
+        sh = pygame.Surface((28, 8), pygame.SRCALPHA)
+        pygame.draw.ellipse(sh, (0, 0, 0, 110), (0, 0, 28, 8))
+        surf.blit(sh, (post_x - 11, GROUND_Y - 4))
+
     def check_goal(self):
-        bx, by = self.ball.x, self.ball.y
-        if bx - BALL_RADIUS <= GOAL_W and by + BALL_RADIUS >= GOAL_Y:
+        bx = self.ball.x
+        # Gol só conta quando a bola passa COMPLETAMENTE da trave
+        if bx + BALL_RADIUS <= GOAL_W:
             self.player2.score += 1
             self.goal_by = 2
-            self.particles += burst(GOAL_W+35, (GOAL_Y+GROUND_Y)//2, CHARACTERS[self.p2_idx]["color"])
+            self.particles += burst(GOAL_W//2, (GOAL_Y+GROUND_Y)//2, CHARACTERS[self.p2_idx]["color"])
             self.flash = 22
             return True
-        if bx + BALL_RADIUS >= SCREEN_W - GOAL_W and by + BALL_RADIUS >= GOAL_Y:
+        if bx - BALL_RADIUS >= SCREEN_W - GOAL_W:
             self.player1.score += 1
             self.goal_by = 1
-            self.particles += burst(SCREEN_W-GOAL_W-35, (GOAL_Y+GROUND_Y)//2, CHARACTERS[self.p1_idx]["color"])
+            self.particles += burst(SCREEN_W-GOAL_W//2, (GOAL_Y+GROUND_Y)//2, CHARACTERS[self.p1_idx]["color"])
             self.flash = 22
             return True
         return False
@@ -986,7 +1261,15 @@ class GameState:
             pygame.draw.rect(surface, ch["color"], box, 5)
             pygame.draw.rect(surface, YELLOW, (box.left+5, box.top+5, box.width-10, box.height-10), 2)
 
-            draw_pixel_sprite(surface, box.left+60, box.centery, ch["sprite"], scale=2)
+            winner_portrait = get_portrait(ch.get("portrait"), size=(96, 110))
+            if winner_portrait is not None:
+                px = box.left + 20
+                py = box.centery - 55
+                surface.blit(winner_portrait, (px, py))
+                pygame.draw.rect(surface, ch["color"], (px, py, 96, 110), 3)
+                pygame.draw.rect(surface, WHITE,       (px, py, 96, 110), 1)
+            else:
+                draw_pixel_sprite(surface, box.left+60, box.centery, ch["sprite"], scale=2)
 
             wt   = f_lg.render(f"PLAYER {self.winner} WINS!", False, YELLOW)
             wt_s = f_lg.render(f"PLAYER {self.winner} WINS!", False, PIXEL_SHADOW)
