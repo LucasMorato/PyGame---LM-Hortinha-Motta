@@ -201,9 +201,9 @@ def burst(x, y, base_color, n=60):
 #  CLASSE JOGADOR
 # ============================================================
 class Player:
-    WIDTH  = int(50 * 1.5 * 2)   # 150
-    HEIGHT = int(70 * 1.5)        # 105
-    SPEED  = 4.2
+    WIDTH  = int(50 * 1.5 * 2*1.2)   # 150
+    HEIGHT = int(70 * 1.5*1.2)        # 105
+    SPEED  = 5
     JUMP_FORCE    = -13
     KICK_RADIUS   = 90
     KICK_FORCE    = 8
