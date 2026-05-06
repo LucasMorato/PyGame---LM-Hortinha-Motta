@@ -150,9 +150,7 @@ CHARACTERS = [
     {"name": "MESSI",      "color": LIGHT_BLUE,      "light": (185, 220, 255),
      "sprite":   _spr((185, 220, 255),  LIGHT_BLUE,      (40, 80, 200)),
      "image":    PLAYER2_IMAGE_PATH,
-     "portrait": _portrait_path("Messi.jpeg"),
-     "sheet":    _portrait_path("movimento_messi/messi_spritesheet.png"),
-     "sheet_cols": 4, "sheet_rows": 2},
+     "portrait": _portrait_path("Messi.jpeg")},
 
     {"name": "MBAPPE",     "color": (60, 80, 200),   "light": (140, 170, 255),
      "sprite":   _spr((140, 170, 255),  (60, 80, 200),   (20, 30, 130)),
@@ -218,47 +216,6 @@ def get_portrait(path, size=(130, 150)):
         except Exception:
             _PORTRAIT_CACHE[key] = None
     return _PORTRAIT_CACHE[key]
-
-
-# ─── Cache de sprite sheets animados (cabeça + bota) ─────────
-# Layout esperado: 4 colunas × 2 linhas (linha 0 = cabeças, linha 1 = botas)
-#   col 0 = idle, col 1 = walk_a, col 2 = walk_b, col 3 = kick/charged
-_SHEET_CACHE = {}
-
-def _trim_and_scale(frame, max_w, max_h):
-    """Recorta bordas transparentes e escala mantendo proporção."""
-    bbox = frame.get_bounding_rect()
-    if bbox.w == 0 or bbox.h == 0:
-        return frame
-    trimmed = frame.subsurface(bbox).copy()
-    src_w, src_h = trimmed.get_size()
-    ratio = min(max_w / src_w, max_h / src_h)
-    return pygame.transform.smoothscale(
-        trimmed, (max(1, int(src_w * ratio)), max(1, int(src_h * ratio))))
-
-def get_sheet_frames(path, head_box, boot_box, cols=4, rows=2):
-    if not path:
-        return None
-    key = (path, head_box, boot_box, cols, rows)
-    if key in _SHEET_CACHE:
-        return _SHEET_CACHE[key]
-    try:
-        if not os.path.exists(path):
-            _SHEET_CACHE[key] = None
-            return None
-        sheet = pygame.image.load(path).convert_alpha()
-        sw, sh = sheet.get_size()
-        fw, fh = sw // cols, sh // rows
-        heads, boots = [], []
-        for c in range(cols):
-            head = sheet.subsurface((c * fw, 0,  fw, fh)).copy()
-            boot = sheet.subsurface((c * fw, fh, fw, fh)).copy()
-            heads.append(_trim_and_scale(head, *head_box))
-            boots.append(_trim_and_scale(boot, *boot_box))
-        _SHEET_CACHE[key] = {"heads": heads, "boots": boots}
-    except Exception:
-        _SHEET_CACHE[key] = None
-    return _SHEET_CACHE[key]
 
 
 # ============================================================
@@ -328,28 +285,14 @@ class Player:
         self.kick_timer   = 0
         self.score        = 0
         self.image        = None
-        self.frames       = None
-        self.anim_time    = 0
 
-        # ── Sprite sheet animado (head + boot) tem prioridade ──
-        sheet_path = char_data.get("sheet")
-        if sheet_path:
-            head_box = (int(self.HEIGHT * 0.85), int(self.HEIGHT * 0.85))
-            boot_box = (int(self.HEIGHT * 0.55), int(self.HEIGHT * 0.40))
-            self.frames = get_sheet_frames(
-                sheet_path, head_box, boot_box,
-                cols=char_data.get("sheet_cols", 4),
-                rows=char_data.get("sheet_rows", 2),
-            )
-
-        if self.frames is None:
-            ip = char_data.get("image")
-            if ip and os.path.exists(ip):
-                try:
-                    img = pygame.image.load(ip).convert_alpha()
-                    self.image = pygame.transform.smoothscale(img, (self.WIDTH, self.HEIGHT))
-                except Exception:
-                    pass
+        ip = char_data.get("image")
+        if ip and os.path.exists(ip):
+            try:
+                img = pygame.image.load(ip).convert_alpha()
+                self.image = pygame.transform.smoothscale(img, (self.WIDTH, self.HEIGHT))
+            except Exception:
+                pass
 
     @property
     def rect(self):
@@ -411,8 +354,6 @@ class Player:
             if self.kick_timer <= 0:
                 self.kicking = False
 
-        self.anim_time += 1
-
     def try_kick_ball(self, ball):
         if not self.kicking:
             return
@@ -443,9 +384,7 @@ class Player:
         w, h = self.WIDTH, self.HEIGHT
         t_k  = self.kick_timer / self.KICK_DURATION if self.kicking else 0.0
 
-        if self.frames:
-            self._draw_animated(surface, x, y)
-        elif self.image:
+        if self.image:
             img = self.image if self.facing_right else pygame.transform.flip(self.image, True, False)
             surface.blit(img, (x, y))
         else:
@@ -461,49 +400,6 @@ class Player:
                 px = kx + int(rad * math.cos(a)) - 3
                 py = ky + int(rad * math.sin(a)) - 3
                 pygame.draw.rect(surface, col, (px, py, 6, 6))
-
-    def _draw_animated(self, surface, x, y):
-        heads = self.frames["heads"]
-        boots = self.frames["boots"]
-
-        # Estado da animação
-        if self.kicking:
-            head_idx = 3   # cabeça "carregada" (golpe)
-            boot_idx = 3   # bota chutando
-        elif abs(self.vx) > 0.5 and self.on_ground:
-            phase    = (self.anim_time // 6) % 2
-            head_idx = 1 + phase  # walk_a / walk_b
-            boot_idx = 1 + phase  # boot_walkup / boot_walkdown
-        elif not self.on_ground:
-            head_idx = 1   # cabeça em movimento (no ar)
-            boot_idx = 1   # bota levantada
-        else:
-            head_idx = 0   # idle
-            boot_idx = 0
-
-        head_img = heads[head_idx]
-        boot_img = boots[boot_idx]
-        if not self.facing_right:
-            head_img = pygame.transform.flip(head_img, True, False)
-            boot_img = pygame.transform.flip(boot_img, True, False)
-
-        hw, hh = head_img.get_size()
-        bw, bh = boot_img.get_size()
-
-        # Cabeça: ocupa o topo do retângulo do player
-        head_x = x + (self.WIDTH - hw) // 2
-        head_y = y + self.HEIGHT - hh - 18      # 18 px de espaço para a bota
-
-        # Bota: alinhada ao chão (GROUND_Y), deslocada para a frente
-        foot_offset = int(self.WIDTH * 0.20)
-        if self.facing_right:
-            boot_x = x + (self.WIDTH - bw) // 2 + foot_offset
-        else:
-            boot_x = x + (self.WIDTH - bw) // 2 - foot_offset
-        boot_y = y + self.HEIGHT - bh
-
-        surface.blit(head_img, (head_x, head_y))
-        surface.blit(boot_img, (boot_x, boot_y))
 
     def _draw_retro(self, surface, x, y, w, h):
         c  = self.color
