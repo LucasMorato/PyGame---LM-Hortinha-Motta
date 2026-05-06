@@ -991,131 +991,181 @@ class GameState:
             pygame.draw.rect(surf, (255, 255, 255, 80),
                              (ax+2, ad_y+3, ad_w-4, 2))
 
-        # ─── Gramado ───────────────────────────────────────────
-        field_top = ad_y + ad_h
-        pygame.draw.rect(surf, FIELD_DARK,
+        # ─── Gramado (verde vivo, sem listras) ─────────────────
+        field_top   = ad_y + ad_h
+        GRASS_BASE  = (54, 175, 78)
+        GRASS_OUT   = (40, 150, 62)        # faixa "fora do campo" (abaixo da linha de fundo)
+
+        pygame.draw.rect(surf, GRASS_BASE,
                          (0, field_top, SCREEN_W, SCREEN_H - field_top))
 
-        # Listras do gramado
-        sw = 80
-        for i in range(0, SCREEN_W, sw*2):
-            pygame.draw.rect(surf, FIELD_LITE,
-                             (i, field_top, sw, SCREEN_H - field_top))
+        # Faixa um pouco mais escura abaixo da linha de fundo
+        pygame.draw.rect(surf, GRASS_OUT,
+                         (0, GROUND_Y + 4, SCREEN_W, SCREEN_H - GROUND_Y - 4))
 
-        # Textura de grama (pontinhos)
-        for _ in range(700):
-            gx = rng.randint(0, SCREEN_W-1)
-            gy = rng.randint(field_top, SCREEN_H-1)
-            gc = rng.choice([(20, 90, 35), (28, 100, 40),
-                             (15, 70, 25), (32, 110, 45)])
+        # Textura sutil (pontinhos discretos)
+        for _ in range(900):
+            gx = rng.randint(0, SCREEN_W - 1)
+            gy = rng.randint(field_top, SCREEN_H - 1)
+            gc = rng.choice([(48, 165, 72), (62, 188, 88),
+                             (52, 172, 76), (44, 155, 65)])
             pygame.draw.rect(surf, gc, (gx, gy, 2, 2))
 
-        # ─── Linhas do campo ───────────────────────────────────
-        lc = LINE_COL
+        # ─── Linhas do campo (brancas) ─────────────────────────
+        lc = WHITE
 
-        # Linha lateral inferior (ground)
+        # Linha de fundo (sideline inferior)
         pygame.draw.rect(surf, lc,
-                         (GOAL_W, GROUND_Y, SCREEN_W - 2*GOAL_W, 3))
-        # Linha de meio-campo (vertical)
-        pygame.draw.rect(surf, lc,
-                         (SCREEN_W//2 - 1, field_top + 6, 3, GROUND_Y - field_top - 4))
+                         (GOAL_W, GROUND_Y, SCREEN_W - 2 * GOAL_W, 3))
 
-        # Círculo central
+        # Linha de meio-campo
+        pygame.draw.rect(surf, lc,
+                         (SCREEN_W // 2 - 2, field_top + 6,
+                          4, GROUND_Y - field_top - 4))
+
+        # Círculo central + ponto
         cc_y = (field_top + GROUND_Y) // 2 + 30
-        pygame.draw.circle(surf, lc, (SCREEN_W//2, cc_y), 55, 2)
-        pygame.draw.rect(surf, lc, (SCREEN_W//2 - 3, cc_y - 3, 6, 6))
+        pygame.draw.circle(surf, lc, (SCREEN_W // 2, cc_y), 62, 3)
+        pygame.draw.circle(surf, lc, (SCREEN_W // 2, cc_y), 5)
 
-        # Grandes áreas (estilizadas: retângulos a partir das traves)
-        pb_w, pb_h = 130, 100
-        ga_w, ga_h = 60,  55
+        # Grandes/pequenas áreas + arco de pênalti + marca
+        pb_w, pb_h = 140, 115
+        ga_w, ga_h = 60,  60
         for is_left in (True, False):
-            base_x = GOAL_W if is_left else SCREEN_W - GOAL_W - pb_w
-            base_x_g = GOAL_W if is_left else SCREEN_W - GOAL_W - ga_w
-            # Grande área
-            pygame.draw.rect(surf, lc, (base_x, GROUND_Y - pb_h, pb_w, pb_h), 2)
-            # Pequena área
-            pygame.draw.rect(surf, lc, (base_x_g, GROUND_Y - ga_h, ga_w, ga_h), 2)
-            # Marca do pênalti
-            spot_x = (GOAL_W + 80) if is_left else (SCREEN_W - GOAL_W - 80)
-            pygame.draw.rect(surf, lc, (spot_x - 2, GROUND_Y - pb_h//2 - 2, 4, 4))
+            if is_left:
+                pb_x = GOAL_W
+                ga_x = GOAL_W
+                spot_x = GOAL_W + 75
+                arc_start, arc_end = -math.pi / 2, math.pi / 2
+            else:
+                pb_x = SCREEN_W - GOAL_W - pb_w
+                ga_x = SCREEN_W - GOAL_W - ga_w
+                spot_x = SCREEN_W - GOAL_W - 75
+                arc_start, arc_end = math.pi / 2, 3 * math.pi / 2
 
-        # ─── Goleiras com profundidade ─────────────────────────
-        self._draw_goal(surf, is_left=True)
-        self._draw_goal(surf, is_left=False)
+            # Grande área
+            pygame.draw.rect(surf, lc,
+                             (pb_x, GROUND_Y - pb_h, pb_w, pb_h), 3)
+            # Pequena área
+            pygame.draw.rect(surf, lc,
+                             (ga_x, GROUND_Y - ga_h, ga_w, ga_h), 3)
+            # Marca do pênalti
+            spot_y = GROUND_Y - pb_h // 2
+            pygame.draw.circle(surf, lc, (spot_x, spot_y), 4)
+            # Arco de pênalti (semicírculo do lado de fora da grande área)
+            r_arc = 38
+            pygame.draw.arc(
+                surf, lc,
+                pygame.Rect(spot_x - r_arc, spot_y - r_arc, r_arc * 2, r_arc * 2),
+                arc_start, arc_end, 3,
+            )
+
+        # ─── Goleiras estilo wireframe ─────────────────────────
+        self._draw_goal(surf, is_left=True,  rng=rng)
+        self._draw_goal(surf, is_left=False, rng=rng)
 
         return surf
 
-    def _draw_goal(self, surf, is_left):
-        """Desenha o gol em perspectiva: travessão, trave, rede e fundo."""
+    def _draw_goal(self, surf, is_left, rng=None):
+        """Goleira aberta com travessão, traves e mesh em branco."""
         if is_left:
-            gx       = 0
-            front_x  = GOAL_W
-            back_x   = 0
-            post_x   = GOAL_W - POST_THICK
+            front_x = GOAL_W                 # poste frontal (lado do campo)
+            back_x  = 4                      # poste do fundo (borda da tela)
         else:
-            gx       = SCREEN_W - GOAL_W
-            front_x  = SCREEN_W - GOAL_W
-            back_x   = SCREEN_W
-            post_x   = SCREEN_W - GOAL_W
+            front_x = SCREEN_W - GOAL_W
+            back_x  = SCREEN_W - 4
 
-        # Fundo escuro do interior do gol
-        pygame.draw.rect(surf, (10, 16, 26), (gx, GOAL_Y, GOAL_W, GOAL_H))
+        f_top = (front_x, GOAL_Y)
+        f_bot = (front_x, GROUND_Y)
+        b_top = (back_x,  GOAL_Y + DEPTH_TOP)
+        b_bot = (back_x,  GROUND_Y - 2)
 
-        # Pontos da rede (perspectiva: o "fundo" é mais alto que a frente)
-        f_top_y = GOAL_Y
-        f_bot_y = GROUND_Y
-        b_top_y = GOAL_Y + DEPTH_TOP
-        b_bot_y = GROUND_Y - 2
+        NET_LIGHT  = (245, 248, 255)
+        NET_SHADOW = (170, 180, 200)
+        POST_FILL  = (250, 250, 252)
+        POST_EDGE  = (140, 150, 175)
 
-        # Polígono da rede (gradiente de cor)
-        net_poly = [(front_x, f_top_y), (front_x, f_bot_y),
-                    (back_x,  b_bot_y), (back_x,  b_top_y)]
-        pygame.draw.polygon(surf, (22, 32, 48), net_poly)
+        # ── Sombra leve no piso do gol (gramado mais escuro) ──
+        floor_poly = [
+            (f_bot[0], GROUND_Y - 4),
+            (b_bot[0], b_bot[1] - 4),
+            (b_bot[0], b_bot[1] + 6),
+            (f_bot[0], GROUND_Y + 6),
+        ]
+        pygame.draw.polygon(surf, (35, 130, 55), floor_poly)
 
-        # ── Linhas verticais da rede (front -> back) ──
-        verts = 7
-        for i in range(1, verts):
-            t = i / verts
-            x_pos  = front_x + (back_x  - front_x) * t
-            top_y  = f_top_y + (b_top_y - f_top_y) * t
-            bot_y  = f_bot_y + (b_bot_y - f_bot_y) * t
-            pygame.draw.line(surf, (55, 70, 100),
-                             (int(x_pos), int(top_y)),
-                             (int(x_pos), int(bot_y)), 1)
+        # ── Mesh interna (rede aberta, em branco translúcido) ──
+        net_surf = pygame.Surface((SCREEN_W, SCREEN_H), pygame.SRCALPHA)
 
-        # ── Linhas horizontais da rede (com perspectiva) ──
-        horiz = 9
-        for i in range(1, horiz):
-            t = i / horiz
-            f_y = f_top_y + (f_bot_y - f_top_y) * t
-            b_y = b_top_y + (b_bot_y - b_top_y) * t
-            pygame.draw.line(surf, (55, 70, 100),
-                             (front_x, int(f_y)),
-                             (back_x,  int(b_y)), 1)
+        # Linhas verticais (do topo frontal -> topo traseiro, parametrizadas)
+        n_v = 8
+        for i in range(1, n_v):
+            t = i / n_v
+            tx = f_top[0] + (b_top[0] - f_top[0]) * t
+            ty = f_top[1] + (b_top[1] - f_top[1]) * t
+            bx = f_bot[0] + (b_bot[0] - f_bot[0]) * t
+            by = f_bot[1] + (b_bot[1] - f_bot[1]) * t
+            pygame.draw.line(net_surf, (*NET_SHADOW, 180),
+                             (int(tx), int(ty)), (int(bx), int(by)), 1)
 
-        # ── Bordas em perspectiva (linhas-guia 3D) ──
-        pygame.draw.line(surf, (95, 105, 135),
-                         (front_x, f_top_y), (back_x, b_top_y), 1)
-        pygame.draw.line(surf, (95, 105, 135),
-                         (front_x, f_bot_y), (back_x, b_bot_y), 1)
+        # Linhas horizontais (parametrizadas em altura)
+        n_h = 10
+        for i in range(1, n_h):
+            t = i / n_h
+            ly = f_top[1] + (f_bot[1] - f_top[1]) * t
+            ry = b_top[1] + (b_bot[1] - b_top[1]) * t
+            pygame.draw.line(net_surf, (*NET_SHADOW, 180),
+                             (front_x, int(ly)), (back_x, int(ry)), 1)
 
-        # ── Travessão ──
-        cb_h = 6
-        cb_y = GOAL_Y - cb_h // 2
-        pygame.draw.rect(surf, GOAL_SILVER, (gx, cb_y, GOAL_W, cb_h))
-        pygame.draw.rect(surf, WHITE,       (gx, cb_y, GOAL_W, 1))
-        pygame.draw.rect(surf, GOAL_DARK,   (gx, cb_y + cb_h - 2, GOAL_W, 2))
+        surf.blit(net_surf, (0, 0))
 
-        # ── Trave frontal (vertical, na frente do gol) ──
-        pygame.draw.rect(surf, GOAL_SILVER, (post_x, GOAL_Y, POST_THICK, GOAL_H))
-        pygame.draw.rect(surf, WHITE,       (post_x, GOAL_Y, 1,          GOAL_H))
-        pygame.draw.rect(surf, GOAL_DARK,
-                         (post_x + POST_THICK - 1, GOAL_Y, 1, GOAL_H))
+        # ── Linhas-guia 3D (topo e base do gol, mais visíveis) ──
+        pygame.draw.line(surf, NET_LIGHT, f_top, b_top, 2)
+        pygame.draw.line(surf, NET_LIGHT, f_bot, b_bot, 2)
 
-        # ── Sombra circular sob a base da trave (no chão) ──
-        sh = pygame.Surface((28, 8), pygame.SRCALPHA)
-        pygame.draw.ellipse(sh, (0, 0, 0, 110), (0, 0, 28, 8))
-        surf.blit(sh, (post_x - 11, GROUND_Y - 4))
+        # ── Travessão frontal (barra horizontal grossa) ────────
+        cb_h = 8
+        pygame.draw.rect(surf, POST_FILL,
+                         (min(front_x, back_x) - 2 if not is_left else back_x,
+                          GOAL_Y - cb_h // 2,
+                          (GOAL_W if is_left else GOAL_W) + 4, cb_h))
+        # (re-desenho mais simples: travessão como linha grossa)
+        pygame.draw.line(surf, POST_FILL,
+                         (f_top[0], GOAL_Y), (b_top[0], GOAL_Y + DEPTH_TOP), 5)
+        pygame.draw.line(surf, POST_EDGE,
+                         (f_top[0], GOAL_Y + 3),
+                         (b_top[0], GOAL_Y + DEPTH_TOP + 3), 1)
+
+        # ── Trave frontal (poste vertical destacado) ───────────
+        if is_left:
+            post_rect = pygame.Rect(front_x - POST_THICK, GOAL_Y,
+                                    POST_THICK, GOAL_H)
+            edge_x = front_x - 1
+        else:
+            post_rect = pygame.Rect(front_x, GOAL_Y, POST_THICK, GOAL_H)
+            edge_x = front_x
+
+        pygame.draw.rect(surf, POST_FILL, post_rect)
+        pygame.draw.rect(surf, POST_EDGE, (edge_x, GOAL_Y, 1, GOAL_H))
+
+        # ── Trave traseira (mais fina, na borda da tela) ───────
+        if is_left:
+            back_post = pygame.Rect(0, GOAL_Y + DEPTH_TOP, 4, GOAL_H - DEPTH_TOP + 2)
+        else:
+            back_post = pygame.Rect(SCREEN_W - 4, GOAL_Y + DEPTH_TOP, 4, GOAL_H - DEPTH_TOP + 2)
+        pygame.draw.rect(surf, POST_FILL, back_post)
+
+        # ── Tufos de grama na base do gol ──────────────────────
+        if rng is not None:
+            tuft_y = GROUND_Y - 2
+            tuft_xs = range(min(front_x, back_x) - 6,
+                            max(front_x, back_x) + 8, 8)
+            for tx in tuft_xs:
+                jitter = rng.randint(-2, 2)
+                base_col = (28, 110, 45)
+                tip_col  = (60, 200, 90)
+                pygame.draw.rect(surf, base_col, (tx + jitter, tuft_y, 4, 6))
+                pygame.draw.rect(surf, tip_col,  (tx + jitter + 1, tuft_y - 2, 2, 4))
 
     def check_goal(self):
         bx = self.ball.x
