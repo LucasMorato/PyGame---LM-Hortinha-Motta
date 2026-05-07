@@ -16,12 +16,19 @@ BALL_RADIUS = 30
 
 BASE_DIR   = os.path.dirname(os.path.abspath(__file__))
 ASSETS_DIR = os.path.join(BASE_DIR, "assets")
-PERSONAGENS_DIR = os.path.join(os.path.dirname(BASE_DIR), "Personagens")
 PLAYER1_IMAGE_PATH = os.path.join(ASSETS_DIR, "player1.png")
 PLAYER2_IMAGE_PATH = os.path.join(ASSETS_DIR, "player2.png")
+HAALAND_IMAGE_PATH = os.path.join(ASSETS_DIR, "haaland.png")
+MBAPPE_IMAGE_PATH = os.path.join(ASSETS_DIR, "Mbappe.png")
+YAMAL_IMAGE_PATH = os.path.join(ASSETS_DIR, "yAMAL.png")
+KANE_IMAGE_PATH = os.path.join(ASSETS_DIR, "kane.png")
+RONY_IMAGE_PATH = os.path.join(ASSETS_DIR, "rony.png")
+PEDRO_RAUL_IMAGE_PATH = os.path.join(ASSETS_DIR, "pedro raul.png")
+APODI_IMAGE_PATH = os.path.join(ASSETS_DIR, "apodi.png")
+CEDRIC_IMAGE_PATH = os.path.join(ASSETS_DIR, "cedric.png")
 
 def _portrait_path(filename):
-    return os.path.join(PERSONAGENS_DIR, filename)
+    return os.path.join(ASSETS_DIR, filename)
 
 # ─── Paleta Retro/Pixel ──────────────────────────────────────
 BLACK        = (  0,   0,   0)
@@ -145,52 +152,52 @@ CHARACTERS = [
     {"name": "CR7",        "color": GOLD,            "light": YELLOW,
      "sprite":   _spr(YELLOW,           GOLD,            (180, 130, 0)),
      "image":    PLAYER1_IMAGE_PATH,
-     "portrait": _portrait_path("CR7.jpeg")},
+     "portrait": PLAYER1_IMAGE_PATH},
 
     {"name": "MESSI",      "color": LIGHT_BLUE,      "light": (185, 220, 255),
      "sprite":   _spr((185, 220, 255),  LIGHT_BLUE,      (40, 80, 200)),
      "image":    PLAYER2_IMAGE_PATH,
-     "portrait": _portrait_path("Messi.jpeg")},
+     "portrait": PLAYER2_IMAGE_PATH},
 
     {"name": "MBAPPE",     "color": (60, 80, 200),   "light": (140, 170, 255),
      "sprite":   _spr((140, 170, 255),  (60, 80, 200),   (20, 30, 130)),
-     "image":    None,
-     "portrait": _portrait_path("Mbappe.jpeg")},
+     "image":    MBAPPE_IMAGE_PATH,
+     "portrait": MBAPPE_IMAGE_PATH},
 
     {"name": "HAALAND",    "color": (140, 220, 230), "light": (200, 240, 250),
      "sprite":   _spr((200, 240, 250),  (140, 220, 230), (40, 130, 170)),
-     "image":    None,
-     "portrait": _portrait_path("Haaland.jpeg")},
+     "image":    HAALAND_IMAGE_PATH,
+     "portrait": HAALAND_IMAGE_PATH},
 
     {"name": "YAMAL",      "color": RED,             "light": LIGHT_RED,
      "sprite":   _spr(LIGHT_RED,        RED,             (140, 20, 20)),
-     "image":    None,
-     "portrait": _portrait_path("Yamal.jpeg")},
+     "image":    YAMAL_IMAGE_PATH,
+     "portrait": YAMAL_IMAGE_PATH},
 
     {"name": "KANE",       "color": (210, 215, 225), "light": (240, 240, 250),
      "sprite":   _spr((240, 240, 250),  (210, 215, 225), (110, 115, 135)),
-     "image":    None,
-     "portrait": _portrait_path("Kane.jpeg")},
+     "image":    KANE_IMAGE_PATH,
+     "portrait": KANE_IMAGE_PATH},
 
     {"name": "RONY",       "color": (10, 130, 50),   "light": GREEN_NEON,
      "sprite":   _spr(GREEN_NEON,       (10, 130, 50),   (5, 70, 25)),
-     "image":    None,
-     "portrait": _portrait_path("Rony.jpeg")},
+     "image":    RONY_IMAGE_PATH,
+     "portrait": RONY_IMAGE_PATH},
 
     {"name": "PEDRO RAUL", "color": (45, 45, 55),    "light": (180, 180, 195),
      "sprite":   _spr((180, 180, 195),  (45, 45, 55),    (15, 15, 25)),
-     "image":    None,
-     "portrait": _portrait_path("Pedro Raul.jpeg")},
+     "image":    PEDRO_RAUL_IMAGE_PATH,
+     "portrait": PEDRO_RAUL_IMAGE_PATH},
 
     {"name": "APODI",      "color": ORANGE,          "light": (255, 195, 80),
      "sprite":   _spr((255, 195, 80),   ORANGE,          (180, 70, 0)),
-     "image":    None,
-     "portrait": _portrait_path("Apodi.jpeg")},
+     "image":    APODI_IMAGE_PATH,
+     "portrait": APODI_IMAGE_PATH},
 
     {"name": "CEDRIC",     "color": PURPLE,          "light": (170, 90, 235),
      "sprite":   _spr((170, 90, 235),   PURPLE,          (55, 5, 115)),
-     "image":    None,
-     "portrait": _portrait_path("Cedric.jpeg")},
+     "image":    CEDRIC_IMAGE_PATH,
+     "portrait": CEDRIC_IMAGE_PATH},
 
     {"name": "TOGURO",     "color": (220, 30, 130),  "light": (255, 130, 200),
      "sprite":   _spr((255, 130, 200),  (220, 30, 130),  (130, 0, 70)),
@@ -209,7 +216,7 @@ def get_portrait(path, size=(130, 150)):
     if key not in _PORTRAIT_CACHE:
         try:
             if os.path.exists(path):
-                img = pygame.image.load(path).convert()
+                img = pygame.image.load(path).convert_alpha()
                 _PORTRAIT_CACHE[key] = pygame.transform.smoothscale(img, size)
             else:
                 _PORTRAIT_CACHE[key] = None
@@ -1011,55 +1018,6 @@ class GameState:
                              (52, 172, 76), (44, 155, 65)])
             pygame.draw.rect(surf, gc, (gx, gy, 2, 2))
 
-        # ─── Linhas do campo (brancas) ─────────────────────────
-        lc = WHITE
-
-        # Linha de fundo (sideline inferior)
-        pygame.draw.rect(surf, lc,
-                         (GOAL_W, GROUND_Y, SCREEN_W - 2 * GOAL_W, 3))
-
-        # Linha de meio-campo
-        pygame.draw.rect(surf, lc,
-                         (SCREEN_W // 2 - 2, field_top + 6,
-                          4, GROUND_Y - field_top - 4))
-
-        # Círculo central + ponto
-        cc_y = (field_top + GROUND_Y) // 2 + 30
-        pygame.draw.circle(surf, lc, (SCREEN_W // 2, cc_y), 62, 3)
-        pygame.draw.circle(surf, lc, (SCREEN_W // 2, cc_y), 5)
-
-        # Grandes/pequenas áreas + arco de pênalti + marca
-        pb_w, pb_h = 140, 115
-        ga_w, ga_h = 60,  60
-        for is_left in (True, False):
-            if is_left:
-                pb_x = GOAL_W
-                ga_x = GOAL_W
-                spot_x = GOAL_W + 75
-                arc_start, arc_end = -math.pi / 2, math.pi / 2
-            else:
-                pb_x = SCREEN_W - GOAL_W - pb_w
-                ga_x = SCREEN_W - GOAL_W - ga_w
-                spot_x = SCREEN_W - GOAL_W - 75
-                arc_start, arc_end = math.pi / 2, 3 * math.pi / 2
-
-            # Grande área
-            pygame.draw.rect(surf, lc,
-                             (pb_x, GROUND_Y - pb_h, pb_w, pb_h), 3)
-            # Pequena área
-            pygame.draw.rect(surf, lc,
-                             (ga_x, GROUND_Y - ga_h, ga_w, ga_h), 3)
-            # Marca do pênalti
-            spot_y = GROUND_Y - pb_h // 2
-            pygame.draw.circle(surf, lc, (spot_x, spot_y), 4)
-            # Arco de pênalti (semicírculo do lado de fora da grande área)
-            r_arc = 38
-            pygame.draw.arc(
-                surf, lc,
-                pygame.Rect(spot_x - r_arc, spot_y - r_arc, r_arc * 2, r_arc * 2),
-                arc_start, arc_end, 3,
-            )
-
         # ─── Goleiras estilo wireframe ─────────────────────────
         self._draw_goal(surf, is_left=True,  rng=rng)
         self._draw_goal(surf, is_left=False, rng=rng)
@@ -1348,7 +1306,7 @@ class GameState:
 def main():
     pygame.init()
     # SCALED garante 1000x600 pixel-perfect mesmo em telas Retina/HiDPI
-    screen = pygame.display.set_mode((SCREEN_W, SCREEN_H), pygame.SCALED, vsync=1)
+    screen = pygame.display.set_mode((SCREEN_W, SCREEN_H), pygame.SCALED | pygame.FULLSCREEN, vsync=1)
     pygame.display.set_caption("HEAD SOCCER 2D — PIXEL EDITION")
     clock  = pygame.time.Clock()
 
