@@ -66,8 +66,8 @@ POST_THICK  = 6                       # Espessura visual da trave
 DEPTH_TOP   = 14                      # Quanto o "fundo" do gol é mais baixo (perspectiva)
 
 # ─── Controles ───────────────────────────────────────────────
-CONTROLS_P1 = {"left": pygame.K_a, "right": pygame.K_d, "jump": pygame.K_w, "kick": pygame.K_q}
-CONTROLS_P2 = {"left": pygame.K_LEFT, "right": pygame.K_RIGHT, "jump": pygame.K_UP, "kick": pygame.K_SEMICOLON}
+CONTROLS_P1 = {"left": pygame.K_a, "right": pygame.K_d, "jump": pygame.K_w, "kick": pygame.K_q, "ability": pygame.K_e}
+CONTROLS_P2 = {"left": pygame.K_LEFT, "right": pygame.K_RIGHT, "jump": pygame.K_UP, "kick": pygame.K_SEMICOLON, "ability": pygame.K_LSHIFT}
 
 # ─── Scanline surface (pre-built) ────────────────────────────
 _SCANLINE_SURF = None
@@ -278,6 +278,8 @@ class Player:
     KICK_DURATION = 15
     COLL_W_FACTOR = 0.50
     COLL_H_FACTOR = 0.75
+    ABILITY_COOLDOWN = 600   # 10 s × 60 fps
+    ABILITY_DURATION = 180   # 3 s × 60 fps
 
     def __init__(self, x, y, char_data, controls, facing_right=True):
         self.x, self.y   = float(x), float(y)
@@ -285,6 +287,7 @@ class Player:
         self.color        = char_data["color"]
         self.light_color  = char_data["light"]
         self.sprite_cols  = char_data["sprite"]
+        self.char_name    = char_data["name"]
         self.controls     = controls
         self.facing_right = facing_right
         self.on_ground    = False
@@ -292,6 +295,9 @@ class Player:
         self.kick_timer   = 0
         self.score        = 0
         self.image        = None
+        self.ability_cooldown = 0
+        self.ability_armed    = False
+        self.ability_timer    = 0
 
         ip = char_data.get("image")
         if ip and os.path.exists(ip):
@@ -345,11 +351,19 @@ class Player:
             self.kicking    = True
             self.kick_timer = self.KICK_DURATION
 
+        ak = self.controls.get("ability")
+        if (ak and keys[ak] and not self.ability_armed
+                and self.ability_timer == 0 and self.ability_cooldown == 0):
+            self.ability_armed    = True
+            self.ability_cooldown = self.ABILITY_COOLDOWN
+
     def update(self):
         self.vy += GRAVITY
         self.x  += self.vx
         self.y  += self.vy
         self._clamp_ground()
+        if self.ability_cooldown > 0:
+            self.ability_cooldown -= 1
 
         if self.x < GOAL_W:
             self.x = float(GOAL_W)
@@ -386,10 +400,42 @@ class Player:
         self._clamp_ground()
         other._clamp_ground()
 
+    def _draw_aura(self, surface, x, y, w, h):
+        t     = pygame.time.get_ticks()
+        pulse = 0.5 + 0.5 * math.sin(t * 0.005)
+        if self.ability_timer > 0:
+            alpha = int(190 + 65 * pulse)
+            col   = (255, 200, 0)
+            rings = 4
+        elif self.ability_armed:
+            alpha = int(130 + 120 * pulse)
+            col   = (255, 255, 100)
+            rings = 3
+        elif self.ability_cooldown == 0:
+            alpha = int(50 + 40 * pulse)
+            col   = (255, 215, 0)
+            rings = 2
+        else:
+            alpha = 18
+            col   = (255, 215, 0)
+            rings = 1
+        pad  = 20
+        aw   = w + pad * 2
+        ah   = h + pad * 2
+        glow = pygame.Surface((aw, ah), pygame.SRCALPHA)
+        for i in range(rings, 0, -1):
+            a  = max(0, alpha - (rings - i) * 55)
+            ep = i * (pad // max(rings, 1))
+            pygame.draw.ellipse(glow, (*col, a),
+                                (pad - ep, pad - ep, w + ep * 2, h + ep * 2), 3)
+        surface.blit(glow, (x - pad, y - pad))
+
     def draw(self, surface):
         x, y = int(self.x), int(self.y)
         w, h = self.WIDTH, self.HEIGHT
         t_k  = self.kick_timer / self.KICK_DURATION if self.kicking else 0.0
+
+        self._draw_aura(surface, x, y, w, h)
 
         if self.image:
             img = self.image if self.facing_right else pygame.transform.flip(self.image, True, False)
@@ -459,9 +505,19 @@ class Ball:
     def reset(self, x, y):
         self.x, self.y = float(x), float(y)
         self.vx = self.vy = 0.0
-        self.angle = 0.0
+        self.angle    = 0.0
+        self.locked_to = None
 
     def update(self):
+        if self.locked_to is not None:
+            p = self.locked_to
+            self.x     = p.x + p.WIDTH * (0.68 if p.facing_right else 0.32)
+            self.y     = p.y + p.HEIGHT * 0.72
+            self.vx    = p.vx
+            self.vy    = p.vy
+            self.angle += p.vx * 1.5
+            return
+
         self.vy    += GRAVITY * 0.50
         self.x     += self.vx
         self.y     += self.vy
@@ -1160,13 +1216,32 @@ class GameState:
         self.player2.handle_input(keys)
         self.player1.update()
         self.player2.update()
+
+        # ── Habilidades especiais ─────────────────────────────
+        for player in (self.player1, self.player2):
+            if player.ability_timer > 0:
+                player.ability_timer -= 1
+                if player.ability_timer == 0:
+                    player.ability_armed = False
+                    if self.ball.locked_to is player:
+                        self.ball.locked_to = None
+                        self.ball.vx = player.vx * 1.5 + (7 if player.facing_right else -7)
+                        self.ball.vy = -8
+            elif player.char_name == "MESSI" and player.ability_armed:
+                prect = player.collision_rect
+                if math.hypot(self.ball.x - prect.centerx,
+                              self.ball.y - prect.centery) < prect.width * 0.65 + BALL_RADIUS:
+                    player.ability_timer  = Player.ABILITY_DURATION
+                    self.ball.locked_to   = player
+
         self.ball.update()
 
         self.player1.collide_with_player(self.player2)
-        self.ball.collide_with_player(self.player1)
-        self.ball.collide_with_player(self.player2)
-        self.player1.try_kick_ball(self.ball)
-        self.player2.try_kick_ball(self.ball)
+        if self.ball.locked_to is None:
+            self.ball.collide_with_player(self.player1)
+            self.ball.collide_with_player(self.player2)
+            self.player1.try_kick_ball(self.ball)
+            self.player2.try_kick_ball(self.ball)
 
         for p in self.particles: p.update()
         self.particles = [p for p in self.particles if p.alive]
@@ -1184,6 +1259,9 @@ class GameState:
         self.player2.x, self.player2.y = 750.0, float(GROUND_Y - Player.HEIGHT)
         self.player2.vx = self.player2.vy = 0.0
         self.ball.reset(SCREEN_W//2, GROUND_Y - 200)
+        for p in (self.player1, self.player2):
+            p.ability_armed = False
+            p.ability_timer = 0
         self.goal_by = None
 
     def _hud(self, surface, f_sm, f_md, f_lg):
@@ -1199,13 +1277,16 @@ class GameState:
         sc = f_lg.render(f"{self.player1.score}  :  {self.player2.score}", False, WHITE)
         surface.blit(sc, (SCREEN_W//2 - sc.get_width()//2, sby+7))
 
-        for i, (ch, tag_x) in enumerate([(c1, 6), (c2, SCREEN_W-196)]):
+        for i, (ch, tag_x, player) in enumerate([
+                (c1, 6,            self.player1),
+                (c2, SCREEN_W-196, self.player2)]):
             tag = pygame.Rect(tag_x, sby, 190, sb_h)
             bg  = tuple(min(25, ch["color"][k]//7) for k in range(3))
             pygame.draw.rect(surface, bg,          tag)
             pygame.draw.rect(surface, ch["color"], tag, 3)
             nm  = f_sm.render(ch["name"], False, ch["light"])
-            ctr = f_sm.render("WASD+Q" if i==0 else "ARROWS+;", False, GRAY)
+            key_hint = "WASD+Q  [E=SKILL]" if i == 0 else "ARROWS+;  [SHF=SKILL]"
+            ctr = f_sm.render(key_hint, False, GRAY)
             surface.blit(nm,  (tag.centerx - nm.get_width()//2,  tag.top+7))
             surface.blit(ctr, (tag.centerx - ctr.get_width()//2, tag.top+27))
 
@@ -1221,6 +1302,30 @@ class GameState:
             col = c2["color"] if i < self.player2.score else DARK_GRAY
             pygame.draw.rect(surface, col,   (px2, pip_y, 16, 8))
             pygame.draw.rect(surface, WHITE, (px2, pip_y, 16, 8), 1)
+
+        # ── Barra de cooldown da habilidade ─────────────────
+        ab_y = pip_y + 12
+        for ab_player, ab_tag_x in ((self.player1, 6), (self.player2, SCREEN_W - 196)):
+            ab_rect = pygame.Rect(ab_tag_x, ab_y, 190, 7)
+            pygame.draw.rect(surface, DARK_GRAY, ab_rect)
+            if ab_player.ability_timer > 0:
+                ratio = ab_player.ability_timer / Player.ABILITY_DURATION
+                ab_col = GOLD
+            elif ab_player.ability_armed:
+                ratio  = 1.0
+                ab_col = YELLOW
+            elif ab_player.ability_cooldown > 0:
+                ratio  = 1.0 - ab_player.ability_cooldown / Player.ABILITY_COOLDOWN
+                ab_col = GRAY
+            else:
+                ratio  = 1.0
+                ab_col = GREEN_NEON
+            fw = int(ab_rect.width * ratio)
+            if fw > 0:
+                pygame.draw.rect(surface, ab_col, (ab_rect.x, ab_rect.y, fw, ab_rect.height))
+            pygame.draw.rect(surface, WHITE, ab_rect, 1)
+            lbl = f_sm.render("SKILL", False, ab_col)
+            surface.blit(lbl, (ab_rect.x + 2, ab_rect.bottom + 1))
 
         esc = f_sm.render("ESC=MENU", False, DARK_GRAY)
         surface.blit(esc, (SCREEN_W - esc.get_width() - 4, SCREEN_H - 18))
