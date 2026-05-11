@@ -278,7 +278,7 @@ class Player:
     KICK_DURATION = 15
     COLL_W_FACTOR = 0.50
     COLL_H_FACTOR = 0.92
-    ABILITY_COOLDOWN = 600   # 10 s × 60 fps
+    ABILITY_COOLDOWN = 1200  # 20 s × 60 fps
     ABILITY_DURATION = 180   # 3 s × 60 fps
 
     def __init__(self, x, y, char_data, controls, facing_right=True):
@@ -300,6 +300,7 @@ class Player:
         self.ability_timer    = 0
         self.scale            = 1.0
         self.float_timer      = 0
+        self.speed_mult       = 1.0
 
         ip = char_data.get("image")
         if ip and os.path.exists(ip):
@@ -341,11 +342,12 @@ class Player:
             self.on_ground = True
 
     def handle_input(self, keys):
+        spd = self.SPEED * self.speed_mult
         if keys[self.controls["left"]]:
-            self.vx = -self.SPEED
+            self.vx = -spd
             self.facing_right = False
         elif keys[self.controls["right"]]:
-            self.vx = self.SPEED
+            self.vx = spd
             self.facing_right = True
         else:
             self.vx *= 0.75
@@ -1294,6 +1296,8 @@ class GameState:
                         self.ball.vy = -8
                     if player.char_name == "HAALAND":       # Haaland: volta ao tamanho normal
                         player.scale = 1.0
+                    if player.char_name == "YAMAL":         # Yamal: volta à velocidade normal
+                        player.speed_mult = 1.0
             elif player.char_name == "MESSI" and player.ability_armed:
                 prect = player.collision_rect
                 if math.hypot(self.ball.x - prect.centerx,
@@ -1302,6 +1306,10 @@ class GameState:
                     self.ball.locked_to  = player
             elif player.char_name == "HAALAND" and player.ability_armed:
                 player.scale         = 1.5
+                player.ability_timer = 300          # 5 segundos
+                player.ability_armed = False
+            elif player.char_name == "YAMAL" and player.ability_armed:
+                player.speed_mult    = 2.0
                 player.ability_timer = 300          # 5 segundos
                 player.ability_armed = False
             elif player.char_name == "KANE" and player.ability_armed:
@@ -1351,6 +1359,7 @@ class GameState:
             p.ability_timer = 0
             p.scale         = 1.0
             p.float_timer   = 0
+            p.speed_mult    = 1.0
         self.goal_by = None
 
     def _hud(self, surface, f_sm, f_md, f_lg):
