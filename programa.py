@@ -16,7 +16,7 @@ BALL_RADIUS = 30
 
 BASE_DIR   = os.path.dirname(os.path.abspath(__file__))
 ASSETS_DIR = os.path.join(BASE_DIR, "assets")
-PERSONAGENS_DIR = os.path.join(os.path.dirname(BASE_DIR), "Personagens")
+PERSONAGENS_DIR = os.path.join(BASE_DIR, "Personagens")
 PLAYER1_IMAGE_PATH = os.path.join(ASSETS_DIR, "player1.png")
 PLAYER2_IMAGE_PATH = os.path.join(ASSETS_DIR, "player2.png")
 HAALAND_IMAGE_PATH = os.path.join(ASSETS_DIR, "haaland.png")
