@@ -277,7 +277,7 @@ class Player:
     KICK_FORCE    = 8
     KICK_DURATION = 15
     COLL_W_FACTOR = 0.50
-    COLL_H_FACTOR = 0.75
+    COLL_H_FACTOR = 0.92
     ABILITY_COOLDOWN = 600   # 10 s × 60 fps
     ABILITY_DURATION = 180   # 3 s × 60 fps
 
@@ -298,6 +298,8 @@ class Player:
         self.ability_cooldown = 0
         self.ability_armed    = False
         self.ability_timer    = 0
+        self.scale            = 1.0
+        self.float_timer      = 0
 
         ip = char_data.get("image")
         if ip and os.path.exists(ip):
@@ -313,17 +315,22 @@ class Player:
 
     @property
     def collision_rect(self):
-        cw = int(self.WIDTH  * self.COLL_W_FACTOR)
-        ch = int(self.HEIGHT * self.COLL_H_FACTOR)
-        return pygame.Rect(
-            int(self.x + (self.WIDTH  - cw) / 2),
-            int(self.y + (self.HEIGHT - ch)),
-            cw, ch)
+        eff_w = int(self.WIDTH  * self.scale)
+        eff_h = int(self.HEIGHT * self.scale)
+        cw    = int(eff_w * self.COLL_W_FACTOR)
+        ch    = int(eff_h * self.COLL_H_FACTOR)
+        cx    = int(self.x + self.WIDTH / 2 - cw / 2)
+        cy    = int(self.y + self.HEIGHT - ch)
+        return pygame.Rect(cx, cy, cw, ch)
 
     @property
     def foot_center(self):
-        fx = self.x + self.WIDTH * (0.7 if self.facing_right else 0.3)
-        fy = self.y + self.HEIGHT * 0.85
+        eff_w  = self.WIDTH  * self.scale
+        eff_h  = self.HEIGHT * self.scale
+        draw_x = self.x + self.WIDTH  / 2 - eff_w / 2
+        draw_y = self.y + self.HEIGHT - eff_h
+        fx     = draw_x + eff_w * (0.7 if self.facing_right else 0.3)
+        fy     = draw_y + eff_h * 0.85
         return (fx, fy)
 
     def _clamp_ground(self):
@@ -358,17 +365,36 @@ class Player:
             self.ability_cooldown = self.ABILITY_COOLDOWN
 
     def update(self):
-        self.vy += GRAVITY
-        self.x  += self.vx
-        self.y  += self.vy
-        self._clamp_ground()
+        if self.float_timer > 0:
+            self.float_timer -= 1
+            self.vy += GRAVITY * 0.22
+            if self.vy < -7:
+                self.vy = -7
+            self.on_ground = False
+        else:
+            self.vy += GRAVITY
+
+        self.x += self.vx
+        self.y += self.vy
+
+        if self.float_timer > 0:
+            if self.y < 10:
+                self.y = 10.0
+                if self.vy < 0:
+                    self.vy = 0
+            if self.y + self.HEIGHT >= GROUND_Y:
+                self.y = float(GROUND_Y - self.HEIGHT)
+                self.vy = -5
+        else:
+            self._clamp_ground()
+
         if self.ability_cooldown > 0:
             self.ability_cooldown -= 1
 
-        if self.x < GOAL_W:
-            self.x = float(GOAL_W)
-        if self.x + self.WIDTH > SCREEN_W - GOAL_W:
-            self.x = float(SCREEN_W - GOAL_W - self.WIDTH)
+        if self.x < 0:
+            self.x = 0.0
+        if self.x + self.WIDTH > SCREEN_W:
+            self.x = float(SCREEN_W - self.WIDTH)
 
         if self.kicking:
             self.kick_timer -= 1
@@ -426,18 +452,43 @@ class Player:
                                 (pad - ep, pad - ep, w + ep * 2, h + ep * 2), 3)
         surface.blit(glow, (x - pad, y - pad))
 
-    def draw(self, surface):
-        x, y = int(self.x), int(self.y)
-        w, h = self.WIDTH, self.HEIGHT
-        t_k  = self.kick_timer / self.KICK_DURATION if self.kicking else 0.0
+    def _draw_hurricane_effect(self, surface, cx, cy, w, h):
+        t     = pygame.time.get_ticks()
+        ratio = self.float_timer / 240.0
+        pcx   = cx + w // 2
+        pcy   = cy + h // 2
+        cols  = [(100, 190, 255), (160, 230, 255), (220, 245, 255)]
+        for i in range(18):
+            a  = math.radians(t * 0.65 + i * 20)
+            rx = int((w * 0.65 + 14 * math.sin(t * 0.005 + i * 0.9)) * ratio)
+            ry = int((h * 0.35 + 8  * math.sin(t * 0.007 + i * 0.7)) * ratio)
+            px = pcx + int(rx * math.cos(a))
+            py = pcy + int(ry * math.sin(a))
+            sz = max(2, int((4 + 3 * math.sin(t * 0.012 + i)) * ratio))
+            pygame.draw.rect(surface, cols[i % 3], (px - sz // 2, py - sz // 2, sz, sz))
 
-        self._draw_aura(surface, x, y, w, h)
+    def draw(self, surface):
+        w, h   = self.WIDTH, self.HEIGHT
+        t_k    = self.kick_timer / self.KICK_DURATION if self.kicking else 0.0
+
+        eff_w  = int(w * self.scale)
+        eff_h  = int(h * self.scale)
+        draw_x = int(self.x + w / 2 - eff_w / 2)
+        draw_y = int(self.y + h - eff_h)
+
+        self._draw_aura(surface, draw_x, draw_y, eff_w, eff_h)
+        if self.float_timer > 0:
+            self._draw_hurricane_effect(surface, draw_x, draw_y, eff_w, eff_h)
 
         if self.image:
-            img = self.image if self.facing_right else pygame.transform.flip(self.image, True, False)
-            surface.blit(img, (x, y))
+            img = self.image
+            if self.scale != 1.0:
+                img = pygame.transform.smoothscale(img, (eff_w, eff_h))
+            if not self.facing_right:
+                img = pygame.transform.flip(img, True, False)
+            surface.blit(img, (draw_x, draw_y))
         else:
-            self._draw_retro(surface, x, y, w, h)
+            self._draw_retro(surface, draw_x, draw_y, eff_w, eff_h)
 
         if self.kicking:
             kx  = int(self.foot_center[0])
@@ -1237,16 +1288,27 @@ class GameState:
                 player.ability_timer -= 1
                 if player.ability_timer == 0:
                     player.ability_armed = False
-                    if self.ball.locked_to is player:
+                    if self.ball.locked_to is player:       # Messi: solta bola
                         self.ball.locked_to = None
                         self.ball.vx = player.vx * 1.5 + (7 if player.facing_right else -7)
                         self.ball.vy = -8
+                    if player.char_name == "HAALAND":       # Haaland: volta ao tamanho normal
+                        player.scale = 1.0
             elif player.char_name == "MESSI" and player.ability_armed:
                 prect = player.collision_rect
                 if math.hypot(self.ball.x - prect.centerx,
                               self.ball.y - prect.centery) < prect.width * 0.65 + BALL_RADIUS:
-                    player.ability_timer  = Player.ABILITY_DURATION
-                    self.ball.locked_to   = player
+                    player.ability_timer = Player.ABILITY_DURATION
+                    self.ball.locked_to  = player
+            elif player.char_name == "HAALAND" and player.ability_armed:
+                player.scale         = 1.5
+                player.ability_timer = 300          # 5 segundos
+                player.ability_armed = False
+            elif player.char_name == "KANE" and player.ability_armed:
+                player.ability_armed = False
+                opp = self.player2 if player is self.player1 else self.player1
+                opp.float_timer = 240               # 4 segundos
+                opp.vy          = -6                # impulso inicial para cima
 
         self.ball.update()
 
@@ -1287,6 +1349,8 @@ class GameState:
         for p in (self.player1, self.player2):
             p.ability_armed = False
             p.ability_timer = 0
+            p.scale         = 1.0
+            p.float_timer   = 0
         self.goal_by = None
 
     def _hud(self, surface, f_sm, f_md, f_lg):
