@@ -16,6 +16,7 @@ BALL_RADIUS = 30
 
 BASE_DIR   = os.path.dirname(os.path.abspath(__file__))
 ASSETS_DIR = os.path.join(BASE_DIR, "assets")
+PERSONAGENS_DIR = os.path.join(os.path.dirname(BASE_DIR), "Personagens")
 PLAYER1_IMAGE_PATH = os.path.join(ASSETS_DIR, "player1.png")
 PLAYER2_IMAGE_PATH = os.path.join(ASSETS_DIR, "player2.png")
 HAALAND_IMAGE_PATH = os.path.join(ASSETS_DIR, "haaland.png")
@@ -24,8 +25,11 @@ YAMAL_IMAGE_PATH = os.path.join(ASSETS_DIR, "yAMAL.png")
 KANE_IMAGE_PATH = os.path.join(ASSETS_DIR, "kane.png")
 RONY_IMAGE_PATH = os.path.join(ASSETS_DIR, "rony.png")
 PEDRO_RAUL_IMAGE_PATH = os.path.join(ASSETS_DIR, "pedro raul.png")
-APODI_IMAGE_PATH = os.path.join(ASSETS_DIR, "apodi.png")
 CEDRIC_IMAGE_PATH = os.path.join(ASSETS_DIR, "cedric.png")
+# Novas imagens vindas da pasta Personagens
+APODI_IMAGE_PATH   = os.path.join(PERSONAGENS_DIR, "Apodi.png")
+TOGURO_IMAGE_PATH  = os.path.join(PERSONAGENS_DIR, "Toguro.png")
+RAPOSAO_IMAGE_PATH = os.path.join(PERSONAGENS_DIR, "Raposao.png")
 
 def _portrait_path(filename):
     return os.path.join(ASSETS_DIR, filename)
@@ -189,8 +193,8 @@ CHARACTERS = [
      "image":    PEDRO_RAUL_IMAGE_PATH,
      "portrait": PEDRO_RAUL_IMAGE_PATH},
 
-    {"name": "APODI",      "color": ORANGE,          "light": (255, 195, 80),
-     "sprite":   _spr((255, 195, 80),   ORANGE,          (180, 70, 0)),
+    {"name": "APODI",      "color": (30, 130, 50),   "light": (90, 210, 110),
+     "sprite":   _spr((90, 210, 110),   (30, 130, 50),   (15, 80, 30)),
      "image":    APODI_IMAGE_PATH,
      "portrait": APODI_IMAGE_PATH},
 
@@ -199,10 +203,15 @@ CHARACTERS = [
      "image":    CEDRIC_IMAGE_PATH,
      "portrait": CEDRIC_IMAGE_PATH},
 
-    {"name": "TOGURO",     "color": (220, 30, 130),  "light": (255, 130, 200),
-     "sprite":   _spr((255, 130, 200),  (220, 30, 130),  (130, 0, 70)),
-     "image":    None,
-     "portrait": _portrait_path("Toguro.jpeg")},
+    {"name": "TOGURO",     "color": (40, 40, 50),    "light": (170, 170, 185),
+     "sprite":   _spr((170, 170, 185),  (40, 40, 50),    (15, 15, 25)),
+     "image":    TOGURO_IMAGE_PATH,
+     "portrait": TOGURO_IMAGE_PATH},
+
+    {"name": "RAPOSAO",    "color": (210, 50, 40),   "light": (255, 130, 100),
+     "sprite":   _spr((255, 130, 100),  (210, 50, 40),   (130, 20, 15)),
+     "image":    RAPOSAO_IMAGE_PATH,
+     "portrait": RAPOSAO_IMAGE_PATH},
 ]
 
 
