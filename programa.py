@@ -901,11 +901,10 @@ class IntroState:
                    for j in range(5)]
             pygame.draw.polygon(surface, BLACK, pts)
 
-        # Title
+        # Título
         for txt_str, f, col, y_pos in [
-            ("HEAD",   f_xl, YELLOW,     70),
-            ("SOCCER", f_xl, WHITE,     150),
-            ("2D",     f_lg, GREEN_NEON, 235),
+            ("COPA",   f_xl, YELLOW,     70),
+            ("CABEÇA", f_xl, WHITE,     150),
         ]:
             t  = f.render(txt_str, False, col)
             ts = f.render(txt_str, False, PIXEL_SHADOW)
@@ -914,13 +913,19 @@ class IntroState:
             surface.blit(t,  (ox,     y_pos))
 
         # Underbar
-        soccer = f_xl.render("SOCCER", False, WHITE)
-        bar_x  = SCREEN_W // 2 - soccer.get_width() // 2
-        pygame.draw.rect(surface, GREEN_NEON, (bar_x, 150 + soccer.get_height() + 4, soccer.get_width(), 4))
-        pygame.draw.rect(surface, YELLOW,     (bar_x + 4, 150 + soccer.get_height() + 9, soccer.get_width()-8, 2))
+        cabeca = f_xl.render("CABEÇA", False, WHITE)
+        bar_x  = SCREEN_W // 2 - cabeca.get_width() // 2
+        pygame.draw.rect(surface, GREEN_NEON,
+                         (bar_x,     150 + cabeca.get_height() + 4, cabeca.get_width(),   4))
+        pygame.draw.rect(surface, YELLOW,
+                         (bar_x + 4, 150 + cabeca.get_height() + 9, cabeca.get_width()-8, 2))
 
-        ver = f_sm.render("v2.0  PIXEL EDITION", False, DARK_GRAY)
-        surface.blit(ver, (SCREEN_W//2 - ver.get_width()//2, 268))
+        # Subtítulo
+        sub  = f_md.render("jogo é jogo e treino é treino", True, GREEN_NEON)
+        sub_s= f_md.render("jogo é jogo e treino é treino", True, PIXEL_SHADOW)
+        sxp  = SCREEN_W // 2 - sub.get_width() // 2
+        surface.blit(sub_s, (sxp + 2, 245 + 2))
+        surface.blit(sub,   (sxp,     245))
 
         if self.timer > 50 and (self.timer // self.BLINK) % 2 == 0:
             pt = f_md.render("PRESS  ENTER  TO  START", False, WHITE)
@@ -1752,7 +1757,7 @@ def main():
     pygame.init()
     # SCALED garante 1000x600 pixel-perfect mesmo em telas Retina/HiDPI
     screen = pygame.display.set_mode((SCREEN_W, SCREEN_H), pygame.SCALED | pygame.FULLSCREEN, vsync=1)
-    pygame.display.set_caption("HEAD SOCCER 2D — PIXEL EDITION")
+    pygame.display.set_caption("Copa Cabeça — jogo é jogo e treino é treino")
     clock  = pygame.time.Clock()
 
     f_sm, f_md, f_lg, f_xl = build_fonts()
