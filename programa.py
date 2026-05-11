@@ -315,7 +315,21 @@ class Player:
         if ip and os.path.exists(ip):
             try:
                 img = pygame.image.load(ip).convert_alpha()
-                self.image = pygame.transform.smoothscale(img, (self.WIDTH, self.HEIGHT))
+                # Recorta a área não-transparente — sem isso, arquivos PNG
+                # com tamanhos diferentes ficam com escalas visuais distintas
+                # no jogo (uns gigantes, outros pequenos).
+                bbox = img.get_bounding_rect()
+                if bbox.w > 0 and bbox.h > 0:
+                    img = img.subsurface(bbox).copy()
+                tw, th = img.get_size()
+                # Encaixa na altura do player; largura proporcional, sem
+                # ultrapassar a largura do rect.
+                target_h = self.HEIGHT
+                target_w = int(tw * target_h / th)
+                if target_w > self.WIDTH:
+                    target_w = self.WIDTH
+                    target_h = int(th * target_w / tw)
+                self.image = pygame.transform.smoothscale(img, (target_w, target_h))
             except Exception:
                 pass
 
@@ -492,12 +506,17 @@ class Player:
             self._draw_hurricane_effect(surface, draw_x, draw_y, eff_w, eff_h)
 
         if self.image:
-            img = self.image
-            if self.scale != 1.0:
-                img = pygame.transform.smoothscale(img, (eff_w, eff_h))
+            iw0, ih0 = self.image.get_size()
+            iw       = max(1, int(iw0 * self.scale))
+            ih       = max(1, int(ih0 * self.scale))
+            img      = (self.image if (iw, ih) == (iw0, ih0)
+                        else pygame.transform.smoothscale(self.image, (iw, ih)))
             if not self.facing_right:
                 img = pygame.transform.flip(img, True, False)
-            surface.blit(img, (draw_x, draw_y))
+            # Centraliza horizontalmente; alinha "pés" no chão do player
+            blit_x = int(self.x + w / 2 - iw / 2)
+            blit_y = int(self.y + h - ih)
+            surface.blit(img, (blit_x, blit_y))
         else:
             self._draw_retro(surface, draw_x, draw_y, eff_w, eff_h)
 
