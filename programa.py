@@ -67,7 +67,7 @@ DEPTH_TOP   = 14                      # Quanto o "fundo" do gol é mais baixo (p
 
 # ─── Controles ───────────────────────────────────────────────
 CONTROLS_P1 = {"left": pygame.K_a, "right": pygame.K_d, "jump": pygame.K_w, "kick": pygame.K_q, "ability": pygame.K_e}
-CONTROLS_P2 = {"left": pygame.K_LEFT, "right": pygame.K_RIGHT, "jump": pygame.K_UP, "kick": pygame.K_SEMICOLON, "ability": pygame.K_LSHIFT}
+CONTROLS_P2 = {"left": pygame.K_LEFT, "right": pygame.K_RIGHT, "jump": pygame.K_UP, "kick": pygame.K_SEMICOLON, "ability": pygame.K_RSHIFT}
 
 # ─── Scanline surface (pre-built) ────────────────────────────
 _SCANLINE_SURF = None
@@ -377,7 +377,7 @@ class Player:
 
     def try_kick_ball(self, ball):
         if not self.kicking:
-            return
+            return False
         fx, fy = self.foot_center
         dist = math.hypot(ball.x - fx, ball.y - fy)
         if dist < self.KICK_RADIUS + BALL_RADIUS:
@@ -386,6 +386,8 @@ class Player:
             dy = (ball.y - fy) / dist
             ball.vx = dx * self.KICK_FORCE + (self.SPEED if self.facing_right else -self.SPEED)
             ball.vy = dy * self.KICK_FORCE - 2
+            return True
+        return False
 
     def collide_with_player(self, other):
         r1, r2 = self.collision_rect, other.collision_rect
@@ -401,24 +403,18 @@ class Player:
         other._clamp_ground()
 
     def _draw_aura(self, surface, x, y, w, h):
+        if not self.ability_armed and self.ability_timer == 0:
+            return
         t     = pygame.time.get_ticks()
         pulse = 0.5 + 0.5 * math.sin(t * 0.005)
         if self.ability_timer > 0:
             alpha = int(190 + 65 * pulse)
             col   = (255, 200, 0)
             rings = 4
-        elif self.ability_armed:
+        else:
             alpha = int(130 + 120 * pulse)
             col   = (255, 255, 100)
             rings = 3
-        elif self.ability_cooldown == 0:
-            alpha = int(50 + 40 * pulse)
-            col   = (255, 215, 0)
-            rings = 2
-        else:
-            alpha = 18
-            col   = (255, 215, 0)
-            rings = 1
         pad  = 20
         aw   = w + pad * 2
         ah   = h + pad * 2
@@ -505,10 +501,14 @@ class Ball:
     def reset(self, x, y):
         self.x, self.y = float(x), float(y)
         self.vx = self.vy = 0.0
-        self.angle    = 0.0
+        self.angle     = 0.0
         self.locked_to = None
+        self.flame_timer = 0
 
     def update(self):
+        if self.flame_timer > 0:
+            self.flame_timer -= 1
+
         if self.locked_to is not None:
             p = self.locked_to
             self.x     = p.x + p.WIDTH * (0.68 if p.facing_right else 0.32)
@@ -621,6 +621,20 @@ class Ball:
     def draw(self, surface):
         ix, iy = int(self.x), int(self.y)
         r      = BALL_RADIUS
+
+        if self.flame_timer > 0:
+            t     = pygame.time.get_ticks()
+            ratio = self.flame_timer / 180.0
+            flame_colors = [(255, 60, 0), (255, 140, 0), (255, 220, 0),
+                            (255, 100, 0), (255, 200, 50), (255, 40, 0)]
+            for i in range(12):
+                a  = math.radians(t * 0.55 + i * 30)
+                ri = r + int(7 + 9 * math.sin(t * 0.007 + i * 1.05))
+                fx = ix + int(ri * math.cos(a))
+                fy = iy + int(ri * math.sin(a))
+                sz = max(2, int((5 + 4 * math.sin(t * 0.013 + i * 0.85)) * ratio))
+                col = flame_colors[i % len(flame_colors)]
+                pygame.draw.rect(surface, col, (fx - sz // 2, fy - sz // 2, sz, sz))
 
         if self.image:
             rot  = pygame.transform.rotate(self.image, -self.angle)
@@ -1240,8 +1254,19 @@ class GameState:
         if self.ball.locked_to is None:
             self.ball.collide_with_player(self.player1)
             self.ball.collide_with_player(self.player2)
-            self.player1.try_kick_ball(self.ball)
-            self.player2.try_kick_ball(self.ball)
+            hit1 = self.player1.try_kick_ball(self.ball)
+            hit2 = self.player2.try_kick_ball(self.ball)
+            # CR7: potencializa o próximo chute
+            if hit1 and self.player1.char_name == "CR7" and self.player1.ability_armed:
+                self.ball.vx *= 2.6
+                self.ball.vy  = min(self.ball.vy * 2.0, -14)
+                self.player1.ability_armed = False
+                self.ball.flame_timer = 180
+            if hit2 and self.player2.char_name == "CR7" and self.player2.ability_armed:
+                self.ball.vx *= 2.6
+                self.ball.vy  = min(self.ball.vy * 2.0, -14)
+                self.player2.ability_armed = False
+                self.ball.flame_timer = 180
 
         for p in self.particles: p.update()
         self.particles = [p for p in self.particles if p.alive]
