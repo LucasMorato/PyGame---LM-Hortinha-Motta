@@ -30,6 +30,7 @@ CEDRIC_IMAGE_PATH = os.path.join(ASSETS_DIR, "cedric.png")
 APODI_IMAGE_PATH   = os.path.join(PERSONAGENS_DIR, "Apodi.png")
 TOGURO_IMAGE_PATH  = os.path.join(PERSONAGENS_DIR, "Toguro.png")
 RAPOSAO_IMAGE_PATH = os.path.join(PERSONAGENS_DIR, "Raposao.png")
+DITADOR_HAT_PATH   = os.path.join(PERSONAGENS_DIR, "Chapeu ditador.png")
 
 def _portrait_path(filename):
     return os.path.join(ASSETS_DIR, filename)
@@ -234,6 +235,35 @@ def get_portrait(path, size=(130, 150)):
     return _PORTRAIT_CACHE[key]
 
 
+_HAT_CACHE = [None]
+def get_dictator_hat(target_h=60):
+    """Chapéu de ditador escalado, com fundo branco-ish removido."""
+    if _HAT_CACHE[0] is not None:
+        return _HAT_CACHE[0]
+    if not os.path.exists(DITADOR_HAT_PATH):
+        return None
+    try:
+        raw = pygame.image.load(DITADOR_HAT_PATH).convert()
+        w, h = raw.get_size()
+        # Pixels claros (perto do branco) viram transparentes
+        surf = pygame.Surface((w, h), pygame.SRCALPHA)
+        for x in range(w):
+            for y in range(h):
+                r, g, b, _ = raw.get_at((x, y))
+                if r > 235 and g > 235 and b > 235:
+                    continue  # deixa transparente
+                surf.set_at((x, y), (r, g, b, 255))
+        bbox = surf.get_bounding_rect()
+        if bbox.w > 0:
+            surf = surf.subsurface(bbox).copy()
+        iw, ih = surf.get_size()
+        tw = int(iw * target_h / ih)
+        _HAT_CACHE[0] = pygame.transform.smoothscale(surf, (tw, target_h))
+    except Exception:
+        _HAT_CACHE[0] = None
+    return _HAT_CACHE[0]
+
+
 # ============================================================
 #  PARTÍCULAS
 # ============================================================
@@ -310,6 +340,12 @@ class Player:
         self.scale            = 1.0
         self.float_timer      = 0
         self.speed_mult       = 1.0
+        self.frozen_timer        = 0        # Raposão: oponente travado
+        self.super_jump_timer    = 0        # Pedro Raul: pulo turbinado + queda rápida
+        self.upside_down_timer   = 0        # Rony: vira de cabeça pra baixo
+        self.hat_timer           = 0        # Mbappé: chapéu de ditador
+        self.auto_goal_armed     = False    # Rony: próximo chute = gol direto
+        self.invert_timer        = 0        # Cedric: controles invertidos
 
         ip = char_data.get("image")
         if ip and os.path.exists(ip):
@@ -365,18 +401,30 @@ class Player:
             self.on_ground = True
 
     def handle_input(self, keys):
+        # Raposão: oponente fica travado, ignora movimento/pulo/chute
+        if self.frozen_timer > 0:
+            self.vx *= 0.5
+            return
+
         spd = self.SPEED * self.speed_mult
-        if keys[self.controls["left"]]:
+        # Cedric: troca left <-> right durante invert_timer
+        if self.invert_timer > 0:
+            left_key, right_key = self.controls["right"], self.controls["left"]
+        else:
+            left_key, right_key = self.controls["left"], self.controls["right"]
+
+        if keys[left_key]:
             self.vx = -spd
             self.facing_right = False
-        elif keys[self.controls["right"]]:
+        elif keys[right_key]:
             self.vx = spd
             self.facing_right = True
         else:
             self.vx *= 0.75
 
         if keys[self.controls["jump"]] and self.on_ground:
-            self.vy = self.JUMP_FORCE
+            jump = self.JUMP_FORCE * (1.6 if self.super_jump_timer > 0 else 1.0)
+            self.vy = jump
             self.on_ground = False
 
         if keys[self.controls["kick"]] and not self.kicking:
@@ -396,6 +444,9 @@ class Player:
             if self.vy < -7:
                 self.vy = -7
             self.on_ground = False
+        elif self.super_jump_timer > 0:
+            # Pedro Raul: queda acelerada quando está descendo
+            self.vy += GRAVITY * (2.2 if self.vy > 0 else 1.0)
         else:
             self.vy += GRAVITY
 
@@ -415,6 +466,13 @@ class Player:
 
         if self.ability_cooldown > 0:
             self.ability_cooldown -= 1
+
+        # Timers das habilidades novas
+        if self.frozen_timer       > 0: self.frozen_timer       -= 1
+        if self.super_jump_timer   > 0: self.super_jump_timer   -= 1
+        if self.upside_down_timer  > 0: self.upside_down_timer  -= 1
+        if self.hat_timer          > 0: self.hat_timer          -= 1
+        if self.invert_timer       > 0: self.invert_timer       -= 1
 
         if self.x < 0:
             self.x = 0.0
@@ -513,10 +571,22 @@ class Player:
                         else pygame.transform.smoothscale(self.image, (iw, ih)))
             if not self.facing_right:
                 img = pygame.transform.flip(img, True, False)
+            # Rony: vira de ponta-cabeça
+            if self.upside_down_timer > 0:
+                img = pygame.transform.flip(img, False, True)
             # Centraliza horizontalmente; alinha "pés" no chão do player
             blit_x = int(self.x + w / 2 - iw / 2)
             blit_y = int(self.y + h - ih)
             surface.blit(img, (blit_x, blit_y))
+
+            # Mbappé: chapéu de ditador sobre a cabeça
+            if self.hat_timer > 0:
+                hat = get_dictator_hat()
+                if hat is not None:
+                    hw, hh = hat.get_size()
+                    hat_x = blit_x + iw // 2 - hw // 2
+                    hat_y = blit_y - hh + 12
+                    surface.blit(hat, (hat_x, hat_y))
         else:
             self._draw_retro(surface, draw_x, draw_y, eff_w, eff_h)
 
@@ -1069,6 +1139,10 @@ class GameState:
         self.particles   = []
         self.flash       = 0
         self.goal_by     = None
+        # Efeitos visuais das habilidades novas
+        self.sabor_timer  = 0     # Toguro: texto "SABOR" na tela
+        self.claw_timer   = 0     # Raposão: garra arranhando a tela
+        self.claw_facing_right = True
         self._field      = self._make_field()
 
     # ── Field surface ──────────────────────────────────────────
@@ -1313,7 +1387,13 @@ class GameState:
         self.player2.update()
 
         # ── Habilidades especiais ─────────────────────────────
+        # Decremento dos efeitos visuais (texto, garra)
+        if self.sabor_timer > 0: self.sabor_timer -= 1
+        if self.claw_timer  > 0: self.claw_timer  -= 1
+
         for player in (self.player1, self.player2):
+            opp = self.player2 if player is self.player1 else self.player1
+
             if player.ability_timer > 0:
                 player.ability_timer -= 1
                 if player.ability_timer == 0:
@@ -1322,10 +1402,13 @@ class GameState:
                         self.ball.locked_to = None
                         self.ball.vx = player.vx * 1.5 + (7 if player.facing_right else -7)
                         self.ball.vy = -8
-                    if player.char_name == "HAALAND":       # Haaland: volta ao tamanho normal
+                    if player.char_name == "HAALAND":
                         player.scale = 1.0
-                    if player.char_name == "YAMAL":         # Yamal: volta à velocidade normal
+                    if player.char_name in ("YAMAL", "APODI"):
                         player.speed_mult = 1.0
+                    if player.char_name == "CEDRIC":        # destrava controles
+                        self.player1.invert_timer = 0
+                        self.player2.invert_timer = 0
             elif player.char_name == "MESSI" and player.ability_armed:
                 prect = player.collision_rect
                 if math.hypot(self.ball.x - prect.centerx,
@@ -1334,17 +1417,70 @@ class GameState:
                     self.ball.locked_to  = player
             elif player.char_name == "HAALAND" and player.ability_armed:
                 player.scale         = 1.5
-                player.ability_timer = 300          # 5 segundos
+                player.ability_timer = 300
                 player.ability_armed = False
             elif player.char_name == "YAMAL" and player.ability_armed:
                 player.speed_mult    = 2.0
-                player.ability_timer = 300          # 5 segundos
+                player.ability_timer = 300
                 player.ability_armed = False
             elif player.char_name == "KANE" and player.ability_armed:
                 player.ability_armed = False
-                opp = self.player2 if player is self.player1 else self.player1
-                opp.float_timer = 240               # 4 segundos
-                opp.vy          = -6                # impulso inicial para cima
+                opp.float_timer = 240
+                opp.vy          = -6
+
+            # ─── HABILIDADES NOVAS ────────────────────────────
+            elif player.char_name == "APODI" and player.ability_armed:
+                # Apodi: muito mais rápido por 5 s
+                player.speed_mult    = 3.0
+                player.ability_timer = 300
+                player.ability_armed = False
+            elif player.char_name == "TOGURO" and player.ability_armed:
+                # Toguro: aparece "SABOR" + oponente voa por 5 s
+                player.ability_armed = False
+                player.ability_timer = 300
+                opp.float_timer = 300
+                opp.vy          = -8
+                self.sabor_timer = 120          # texto "SABOR" ~2 s
+            elif player.char_name == "RAPOSAO" and player.ability_armed:
+                # Raposão: garra na tela + oponente travado por 5 s
+                player.ability_armed = False
+                player.ability_timer = 300
+                opp.frozen_timer = 300
+                opp.vx           = 0
+                self.claw_timer  = 90
+                self.claw_facing_right = player.facing_right
+            elif player.char_name == "MBAPPE" and player.ability_armed:
+                # Mbappé: chapéu de ditador + bola teleporta para o pé
+                player.ability_armed = False
+                player.ability_timer = 180
+                player.hat_timer     = 180
+                # Bola "vai para o pé"
+                fx, fy = player.foot_center
+                self.ball.locked_to = None
+                self.ball.x  = float(fx)
+                self.ball.y  = float(fy - BALL_RADIUS)
+                self.ball.vx = 0.0
+                self.ball.vy = 0.0
+            elif player.char_name == "RONY" and player.ability_armed:
+                # Rony: vira de cabeça pra baixo e ARMA chute-direto-pro-gol
+                player.ability_armed = False
+                player.ability_timer = 300
+                player.upside_down_timer = 300
+                player.auto_goal_armed   = True
+            elif player.char_name == "PEDRO RAUL" and player.ability_armed:
+                # Pedro Raul: bola sobe + super pulo + queda acelerada (5 s)
+                player.ability_armed = False
+                player.ability_timer = 300
+                player.super_jump_timer = 300
+                # Lança a bola para cima
+                self.ball.locked_to = None
+                self.ball.vy = -22
+            elif player.char_name == "CEDRIC" and player.ability_armed:
+                # Cedric: inverte controles de ambos por 5 s
+                player.ability_armed = False
+                player.ability_timer = 300
+                self.player1.invert_timer = 300
+                self.player2.invert_timer = 300
 
         self.ball.update()
 
@@ -1365,6 +1501,21 @@ class GameState:
                 self.ball.vy  = min(self.ball.vy * 2.0, -14)
                 self.player2.ability_armed = False
                 self.ball.flame_timer = 180
+
+            # Rony: ao chutar com auto-goal armado, bola vai direto para o gol
+            for hit, p in [(hit1, self.player1), (hit2, self.player2)]:
+                if hit and p.char_name == "RONY" and p.auto_goal_armed:
+                    # P1 ataca gol direito (x=SCREEN_W), P2 ataca gol esquerdo (x=0)
+                    target_x = SCREEN_W - GOAL_W // 2 if p is self.player1 else GOAL_W // 2
+                    target_y = GOAL_Y + GOAL_H * 0.5
+                    dx       = target_x - self.ball.x
+                    dy       = target_y - self.ball.y
+                    dist     = max(math.hypot(dx, dy), 1.0)
+                    speed    = 35.0
+                    self.ball.vx = dx / dist * speed
+                    self.ball.vy = dy / dist * speed
+                    self.ball.flame_timer = 180
+                    p.auto_goal_armed     = False
 
         for p in self.particles: p.update()
         self.particles = [p for p in self.particles if p.alive]
@@ -1388,6 +1539,14 @@ class GameState:
             p.scale         = 1.0
             p.float_timer   = 0
             p.speed_mult    = 1.0
+            p.frozen_timer       = 0
+            p.super_jump_timer   = 0
+            p.upside_down_timer  = 0
+            p.hat_timer          = 0
+            p.invert_timer       = 0
+            p.auto_goal_armed    = False
+        self.sabor_timer = 0
+        self.claw_timer  = 0
         self.goal_by = None
 
     def _hud(self, surface, f_sm, f_md, f_lg):
@@ -1456,6 +1615,57 @@ class GameState:
         esc = f_sm.render("ESC=MENU", False, DARK_GRAY)
         surface.blit(esc, (SCREEN_W - esc.get_width() - 4, SCREEN_H - 18))
 
+    # ── Efeito visual: "SABOR" gigante (Toguro) ─────────────────
+    def _draw_sabor_effect(self, surface, f_xl):
+        ratio = self.sabor_timer / 120.0
+        # Escala gigante; ainda maior nos primeiros frames (impacto)
+        scale = 4.0 + (1.0 - ratio) * 0.6
+        alpha = int(255 * min(1.0, ratio * 2.5))
+
+        txt = f_xl.render("SABOR", True, (255, 230, 0))
+        tw, th = txt.get_size()
+        sw, sh = max(1, int(tw * scale)), max(1, int(th * scale))
+        scaled = pygame.transform.smoothscale(txt, (sw, sh))
+        scaled.set_alpha(alpha)
+        shadow = pygame.transform.smoothscale(
+            f_xl.render("SABOR", True, BLACK), (sw, sh))
+        shadow.set_alpha(alpha)
+        x = SCREEN_W // 2 - sw // 2
+        y = SCREEN_H // 2 - sh // 2
+        # Fundo escurecido para destaque
+        bg = pygame.Surface((SCREEN_W, SCREEN_H), pygame.SRCALPHA)
+        bg.fill((0, 0, 0, int(120 * min(1.0, ratio * 2.5))))
+        surface.blit(bg, (0, 0))
+        surface.blit(shadow, (x + 10, y + 10))
+        surface.blit(scaled, (x, y))
+
+    # ── Efeito visual: garras arranhando a tela (Raposão) ──────
+    def _draw_claw_effect(self, surface):
+        ratio = self.claw_timer / 90.0
+        alpha = int(255 * min(1.0, ratio * 2.0))
+        progress = 1.0 - ratio    # 0..1 do movimento das garras
+        layer    = pygame.Surface((SCREEN_W, SCREEN_H), pygame.SRCALPHA)
+        # 4 listras de garra, espaçadas pela tela toda
+        for i in range(4):
+            cy_start = 90  + i * 100
+            cy_end   = cy_start + 460
+            cy       = int(cy_start + (cy_end - cy_start) * progress)
+            if self.claw_facing_right:
+                x_start, x_end = -200, SCREEN_W + 200
+            else:
+                x_start, x_end = SCREEN_W + 200, -200
+            cx = int(x_start + (x_end - x_start) * progress)
+            for j in range(3):
+                dx = (j - 1) * 40
+                length = 360
+                col = (220, 20, 20, alpha)
+                start = (cx + dx - length // 2, cy - length // 2)
+                end   = (cx + dx + length // 2, cy + length // 2)
+                pygame.draw.line(layer, col, start, end, 9)
+                pygame.draw.line(layer, (255, 240, 240, alpha),
+                                 start, end, 3)
+        surface.blit(layer, (0, 0))
+
     def draw(self, surface, f_sm, f_md, f_lg):
         if self.flash > 0:
             fl  = pygame.Surface((SCREEN_W, SCREEN_H))
@@ -1468,6 +1678,10 @@ class GameState:
         self.player1.draw(surface)
         self.player2.draw(surface)
         self.ball.draw(surface)
+
+        # Efeitos visuais das habilidades novas
+        if self.claw_timer  > 0: self._draw_claw_effect(surface)
+        if self.sabor_timer > 0: self._draw_sabor_effect(surface, f_xl=f_lg)
 
         self._hud(surface, f_sm, f_md, f_lg)
 
