@@ -262,7 +262,27 @@ def get_dictator_hat(target_h=60):
     except Exception:
         _HAT_CACHE[0] = None
     return _HAT_CACHE[0]
-
+# desc habilidades
+def draw_ability_tooltip(surface, char_name, rect, f_sm):
+        ABILITY_DESCRIPTIONS = {
+            "CR7":        "Chute turbinado",
+            "MESSI":      "Dribla com a bola",
+            "MBAPPE":     "Bola teletransporta",
+            "HAALAND":    "Gigante",
+            "YAMAL":      "Super Velocidade",
+            "KANE":       "Furacão",
+            "RONY":       "Bicicleta",
+            "PEDRO RAUL": "Super Pulo",
+            "APODI":      "Fica muito mais rápido.",
+            "CEDRIC":     "Apenas Cedric Soares",
+            "TOGURO":     "SABOR!",
+            "RAPOSAO":    "Garras",
+        }
+        desc = ABILITY_DESCRIPTIONS.get(char_name, "")
+        if not desc:
+            return
+        lbl = f_sm.render(f"SKILL: {desc}", False, CYAN)
+        surface.blit(lbl, (rect.centerx - lbl.get_width() // 2, rect.bottom + 70))
 
 # ============================================================
 #  PARTÍCULAS
@@ -940,6 +960,7 @@ class IntroState:
 class CharSelectState:
     BLINK = 34
 
+
     def __init__(self):
         self.p1_idx   = 0
         self.p2_idx   = 1
@@ -989,6 +1010,7 @@ class CharSelectState:
         if self.p2_flash > 0: self.p2_flash -= 1
 
     def _panel(self, surface, rect, idx, label, ready, flash, f_sm, f_md):
+        
         ch   = CHARACTERS[idx]
         tint = tuple(min(28, ch["color"][i] // 6) for i in range(3))
         bg   = tuple(8 + tint[i] for i in range(3))
@@ -1045,7 +1067,7 @@ class CharSelectState:
             for arrow_txt, ax in [("<", rect.left+8), (">", rect.right-22)]:
                 at = f_md.render(arrow_txt, False, ch["color"])
                 surface.blit(at, (ax, arrow_y - at.get_height()//2))
-
+        draw_ability_tooltip(surface, ch["name"], rect, f_sm)
         st_rect = pygame.Rect(rect.left+8, rect.bottom-38, rect.width-16, 28)
         if ready:
             pygame.draw.rect(surface, (0, 80, 20), st_rect)
@@ -1056,7 +1078,7 @@ class CharSelectState:
             pygame.draw.rect(surface, GRAY,         st_rect, 2)
             blink = (self.timer // self.BLINK) % 2 == 0
             st = f_sm.render("PRESS W / UP" if blink else "TO CONFIRM", False, GRAY)
-        surface.blit(st, (rect.centerx - st.get_width()//2, st_rect.top + 6))
+        surface.blit(st, (rect.centerx - st.get_width()//2, st_rect.top -20))
 
     def _dots(self, surface, panel_cx, dot_y, sel_idx):
         gap   = 20
@@ -1611,6 +1633,7 @@ class GameState:
             pygame.draw.rect(surface, WHITE, ab_rect, 1)
             lbl = f_sm.render("SKILL", False, ab_col)
             surface.blit(lbl, (ab_rect.x + 2, ab_rect.bottom + 1))
+            draw_ability_tooltip(surface, ab_player, ab_tag_x, f_sm)
 
         esc = f_sm.render("ESC=MENU", False, DARK_GRAY)
         surface.blit(esc, (SCREEN_W - esc.get_width() - 4, SCREEN_H - 18))
