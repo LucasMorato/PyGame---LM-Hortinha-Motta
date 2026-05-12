@@ -1083,7 +1083,7 @@ class CharSelectState:
             pygame.draw.rect(surface, GRAY,         st_rect, 2)
             blink = (self.timer // self.BLINK) % 2 == 0
             st = f_sm.render("PRESS W / UP" if blink else "TO CONFIRM", False, GRAY)
-        surface.blit(st, (rect.centerx - st.get_width()//2, st_rect.top -20))
+        surface.blit(st, (rect.centerx - st.get_width()//2, st_rect.top +6))
 
     def _dots(self, surface, panel_cx, dot_y, sel_idx):
         gap   = 20
