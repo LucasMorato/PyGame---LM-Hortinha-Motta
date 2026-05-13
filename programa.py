@@ -220,16 +220,30 @@ CHARACTERS = [
 _PORTRAIT_CACHE = {}
 
 def get_portrait(path, size=(130, 150)):
+    """Carrega o retrato, recortando o fundo transparente e mantendo o
+    aspect ratio do conteúdo dentro da caixa pedida (size)."""
     if not path:
         return None
     key = (path, size)
     if key not in _PORTRAIT_CACHE:
         try:
-            if os.path.exists(path):
-                img = pygame.image.load(path).convert_alpha()
-                _PORTRAIT_CACHE[key] = pygame.transform.smoothscale(img, size)
-            else:
+            if not os.path.exists(path):
                 _PORTRAIT_CACHE[key] = None
+                return None
+            img = pygame.image.load(path).convert_alpha()
+            # Recorta os pixels totalmente transparentes ao redor — sem isso,
+            # arquivos com bastante "padding" ficam com a figura minúscula
+            # depois do smoothscale.
+            bbox = img.get_bounding_rect()
+            if bbox.w > 0 and bbox.h > 0:
+                img = img.subsurface(bbox).copy()
+            iw, ih = img.get_size()
+            tw, th = size
+            # Escala mantendo proporção, encaixando dentro de (tw, th)
+            ratio = min(tw / iw, th / ih)
+            new_w = max(1, int(iw * ratio))
+            new_h = max(1, int(ih * ratio))
+            _PORTRAIT_CACHE[key] = pygame.transform.smoothscale(img, (new_w, new_h))
         except Exception:
             _PORTRAIT_CACHE[key] = None
     return _PORTRAIT_CACHE[key]
@@ -1073,22 +1087,30 @@ class CharSelectState:
         surface.blit(lbl, (rect.centerx - lbl.get_width()//2, rect.top + 10))
 
         bob       = int(3 * math.sin(math.radians(self.anim)))
-        portrait  = get_portrait(ch.get("portrait"), size=(110, 125))
+        # Caixa fixa do retrato — sempre desenhada com o mesmo tamanho em
+        # todos os personagens (a imagem é centralizada e bottom-aligned).
+        BOX_W, BOX_H = 130, 130
+        portrait  = get_portrait(ch.get("portrait"), size=(BOX_W, BOX_H))
+        box_x     = rect.centerx - BOX_W // 2
+        box_y     = rect.top + 28 + bob
 
         if portrait is not None:
-            pw, ph    = portrait.get_size()
-            ptx       = rect.centerx - pw // 2
-            pty       = rect.top + 32 + bob
-            halo      = pygame.Surface((pw + 24, ph + 24), pygame.SRCALPHA)
-            pygame.draw.rect(halo, (*ch["color"], 70), (0, 0, pw + 24, ph + 24))
-            surface.blit(halo, (ptx - 12, pty - 12))
+            pw, ph = portrait.get_size()
+            # Centraliza horizontal; alinha pela base
+            ptx = box_x + (BOX_W - pw) // 2
+            pty = box_y + (BOX_H - ph)
+            halo = pygame.Surface((BOX_W + 24, BOX_H + 24), pygame.SRCALPHA)
+            pygame.draw.rect(halo, (*ch["color"], 70),
+                             (0, 0, BOX_W + 24, BOX_H + 24))
+            surface.blit(halo, (box_x - 12, box_y - 12))
             surface.blit(portrait, (ptx, pty))
-            pygame.draw.rect(surface, ch["color"], (ptx, pty, pw, ph), 3)
-            pygame.draw.rect(surface, WHITE,        (ptx, pty, pw, ph), 1)
-            for cx, cy in [(ptx-2, pty-2), (ptx+pw-2, pty-2),
-                           (ptx-2, pty+ph-2), (ptx+pw-2, pty+ph-2)]:
+            # Moldura sempre na CAIXA fixa, não na imagem
+            pygame.draw.rect(surface, ch["color"], (box_x, box_y, BOX_W, BOX_H), 3)
+            pygame.draw.rect(surface, WHITE,        (box_x, box_y, BOX_W, BOX_H), 1)
+            for cx, cy in [(box_x-2, box_y-2), (box_x+BOX_W-2, box_y-2),
+                           (box_x-2, box_y+BOX_H-2), (box_x+BOX_W-2, box_y+BOX_H-2)]:
                 pygame.draw.rect(surface, WHITE, (cx, cy, 4, 4))
-            arrow_y = pty + ph // 2
+            arrow_y = box_y + BOX_H // 2
         else:
             spr_y = rect.top + 110 + bob
             halo  = pygame.Surface((80, 80), pygame.SRCALPHA)
@@ -1100,7 +1122,7 @@ class CharSelectState:
         name_col = YELLOW if flash > 0 else ch["light"]
         nm   = f_md.render(ch["name"], False, name_col)
         nm_s = f_md.render(ch["name"], False, PIXEL_SHADOW)
-        ny   = rect.top + 167
+        ny   = rect.top + 168
         surface.blit(nm_s, (rect.centerx - nm.get_width()//2 + 2, ny + 2))
         surface.blit(nm,   (rect.centerx - nm.get_width()//2,     ny))
 
@@ -1142,8 +1164,8 @@ class CharSelectState:
         pygame.draw.rect(surface, BG_MID,  (0, 0, SCREEN_W, 52))
         pygame.draw.rect(surface, YELLOW,  (0, 50, SCREEN_W, 3))
 
-        title   = f_lg.render("SELECT  YOUR  FIGHTER", False, YELLOW)
-        title_s = f_lg.render("SELECT  YOUR  FIGHTER", False, PIXEL_SHADOW)
+        title   = f_lg.render("SELECT  YOUR  CHAMPION", False, YELLOW)
+        title_s = f_lg.render("SELECT  YOUR  CHAMPION", False, PIXEL_SHADOW)
         tx = SCREEN_W//2 - title.get_width()//2
         surface.blit(title_s, (tx+3, 12))
         surface.blit(title,   (tx,   9))
