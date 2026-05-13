@@ -335,8 +335,8 @@ class Player:
     KICK_RADIUS   = 90
     KICK_FORCE    = 8
     KICK_DURATION = 15
-    COLL_W_FACTOR = 0.50
-    COLL_H_FACTOR = 0.92
+    COLL_W_FACTOR = 0.68
+    COLL_H_FACTOR = 0.94
     ABILITY_COOLDOWN = 1200  # 20 s × 60 fps
     ABILITY_DURATION = 180   # 3 s × 60 fps
 
@@ -364,8 +364,9 @@ class Player:
         self.super_jump_timer    = 0        # Pedro Raul: pulo turbinado + queda rápida
         self.upside_down_timer   = 0        # Rony: vira de cabeça pra baixo
         self.hat_timer           = 0        # Mbappé: chapéu de ditador
-        self.auto_goal_armed     = False    # Rony: próximo chute = gol direto
+        self.auto_goal_armed     = False    # (não usado mais)
         self.invert_timer        = 0        # Cedric: controles invertidos
+        self.rony_spin_timer     = 0        # Rony: voa no ar + girando 360°
 
         ip = char_data.get("image")
         if ip and os.path.exists(ip):
@@ -458,6 +459,24 @@ class Player:
             self.ability_cooldown = self.ABILITY_COOLDOWN
 
     def update(self):
+        # Rony spin: travado no ar, sem gravidade nem movimento horizontal
+        if self.rony_spin_timer > 0:
+            self.rony_spin_timer -= 1
+            self.vx = 0.0
+            self.vy = 0.0
+            self.on_ground = False
+            if self.frozen_timer       > 0: self.frozen_timer       -= 1
+            if self.super_jump_timer   > 0: self.super_jump_timer   -= 1
+            if self.upside_down_timer  > 0: self.upside_down_timer  -= 1
+            if self.hat_timer          > 0: self.hat_timer          -= 1
+            if self.invert_timer       > 0: self.invert_timer       -= 1
+            if self.ability_cooldown   > 0: self.ability_cooldown   -= 1
+            if self.kicking:
+                self.kick_timer -= 1
+                if self.kick_timer <= 0:
+                    self.kicking = False
+            return
+
         if self.float_timer > 0:
             self.float_timer -= 1
             self.vy += GRAVITY * 0.22
@@ -591,13 +610,22 @@ class Player:
                         else pygame.transform.smoothscale(self.image, (iw, ih)))
             if not self.facing_right:
                 img = pygame.transform.flip(img, True, False)
-            # Rony: vira de ponta-cabeça
+            # Rony: vira de ponta-cabeça (flip vertical)
             if self.upside_down_timer > 0:
                 img = pygame.transform.flip(img, False, True)
             # Centraliza horizontalmente; alinha "pés" no chão do player
             blit_x = int(self.x + w / 2 - iw / 2)
             blit_y = int(self.y + h - ih)
-            surface.blit(img, (blit_x, blit_y))
+            # Rony spin: rotação 360° contínua
+            if self.rony_spin_timer > 0:
+                progress = 1.0 - (self.rony_spin_timer / 120.0)
+                spin_deg = progress * 360.0       # giro completo em 2 s
+                rot_img  = pygame.transform.rotate(img, spin_deg)
+                rect_r   = rot_img.get_rect(center=(blit_x + iw // 2,
+                                                    blit_y + ih // 2))
+                surface.blit(rot_img, rect_r.topleft)
+            else:
+                surface.blit(img, (blit_x, blit_y))
 
             # Mbappé: chapéu de ditador sobre a cabeça
             if self.hat_timer > 0:
@@ -676,7 +704,7 @@ class Ball:
         self.locked_to = None
         self.flame_timer = 0
 
-    def update(self):
+    def update(self, players=()):
         if self.flame_timer > 0:
             self.flame_timer -= 1
 
@@ -689,15 +717,27 @@ class Ball:
             self.angle += p.vx * 1.5
             return
 
-        self.vy    += GRAVITY * 0.50
-        self.x     += self.vx
-        self.y     += self.vy
-        self.angle += self.vx * 1.5
+        # ─── Substeps para evitar tunneling em chutes fortes ──────
+        # Garante que a bola se mova no máximo ~BALL_RADIUS/2 por sub-step.
+        speed     = math.hypot(self.vx, self.vy)
+        max_step  = max(8.0, BALL_RADIUS * 0.6)
+        n_steps   = max(1, min(10, int(speed / max_step) + 1))
+        dt        = 1.0 / n_steps
+        for _ in range(n_steps):
+            self._step_move(dt)
+            for p in players:
+                self.collide_with_player(p)
+
+    def _step_move(self, dt):
+        self.vy    += GRAVITY * 0.50 * dt
+        self.x     += self.vx * dt
+        self.y     += self.vy * dt
+        self.angle += self.vx * 1.5 * dt
 
         if self.y + BALL_RADIUS >= GROUND_Y:
             self.y  = GROUND_Y - BALL_RADIUS
             self.vy = -abs(self.vy) * self.BOUNCE
-            self.vx *= self.FRICTION
+            self.vx *= self.FRICTION ** dt
             if abs(self.vy) < 1.2:
                 self.vy = 0
 
@@ -715,12 +755,9 @@ class Ball:
             self.vx = -abs(self.vx) * self.BOUNCE
 
         # ─── Travessão (crossbar): canto superior do gol ───────────────
-        # Se a bola está descendo perto da quina (x≈GOAL_W, y≈GOAL_Y),
-        # rebate como se fosse a trave/travessão.
         for corner_x, sign in ((GOAL_W, 1), (SCREEN_W - GOAL_W, -1)):
             dx = self.x - corner_x
             dy = self.y - GOAL_Y
-            # Só consideramos a quina pelo lado do campo
             if sign * dx >= -POST_THICK:
                 dist_sq = dx*dx + dy*dy
                 r = BALL_RADIUS + POST_THICK // 2
@@ -737,7 +774,6 @@ class Ball:
                         self.vy -= 2 * vn * ny * self.BOUNCE
 
         # ─── Travessão (parte horizontal dentro do gol) ────────────────
-        # Quando a bola está dentro do gol e tenta subir, bate no travessão.
         if self.x < GOAL_W and self.y - BALL_RADIUS < GOAL_Y:
             self.y  = float(GOAL_Y + BALL_RADIUS)
             self.vy = abs(self.vy) * self.BOUNCE
@@ -1425,7 +1461,19 @@ class GameState:
                 player.ability_timer -= 1
                 if player.ability_timer == 0:
                     player.ability_armed = False
-                    if self.ball.locked_to is player:       # Messi: solta bola
+                    if player.char_name == "RONY" and self.ball.locked_to is player:
+                        # Final do show: bola é arremessada direto pro gol adversário
+                        self.ball.locked_to = None
+                        target_x = SCREEN_W - GOAL_W // 2 if player is self.player1 else GOAL_W // 2
+                        target_y = GOAL_Y + GOAL_H * 0.5
+                        dx       = target_x - self.ball.x
+                        dy       = target_y - self.ball.y
+                        dist     = max(math.hypot(dx, dy), 1.0)
+                        speed_   = 30.0
+                        self.ball.vx = dx / dist * speed_
+                        self.ball.vy = dy / dist * speed_
+                        self.ball.flame_timer = 180
+                    elif self.ball.locked_to is player:     # Messi: solta bola
                         self.ball.locked_to = None
                         self.ball.vx = player.vx * 1.5 + (7 if player.facing_right else -7)
                         self.ball.vy = -8
@@ -1489,11 +1537,21 @@ class GameState:
                 self.ball.vx = 0.0
                 self.ball.vy = 0.0
             elif player.char_name == "RONY" and player.ability_armed:
-                # Rony: vira de cabeça pra baixo e ARMA chute-direto-pro-gol
+                # Rony: voa, vira de ponta cabeça, gira 360°,
+                # bola gruda nele e ao final é arremessada direto para o gol.
                 player.ability_armed = False
-                player.ability_timer = 300
-                player.upside_down_timer = 300
-                player.auto_goal_armed   = True
+                spin_dur             = 120          # 2 segundos de show
+                player.ability_timer    = spin_dur
+                player.upside_down_timer = spin_dur
+                player.rony_spin_timer   = spin_dur
+                # Tira do chão e fixa em altura elevada
+                player.vx = 0.0
+                player.vy = 0.0
+                player.y  = float(GROUND_Y - Player.HEIGHT - 180)
+                # Bola gruda nele
+                self.ball.locked_to = player
+                self.ball.vx = 0.0
+                self.ball.vy = 0.0
             elif player.char_name == "PEDRO RAUL" and player.ability_armed:
                 # Pedro Raul: bola sobe + super pulo + queda acelerada (5 s)
                 player.ability_armed = False
@@ -1509,12 +1567,12 @@ class GameState:
                 self.player1.invert_timer = 300
                 self.player2.invert_timer = 300
 
-        self.ball.update()
+        # Colisão bola↔jogador agora roda dentro dos substeps do update,
+        # evitando que a bola atravesse os personagens em chutes fortes.
+        self.ball.update((self.player1, self.player2))
 
         self.player1.collide_with_player(self.player2)
         if self.ball.locked_to is None:
-            self.ball.collide_with_player(self.player1)
-            self.ball.collide_with_player(self.player2)
             hit1 = self.player1.try_kick_ball(self.ball)
             hit2 = self.player2.try_kick_ball(self.ball)
             # CR7: potencializa o próximo chute
@@ -1529,20 +1587,6 @@ class GameState:
                 self.player2.ability_armed = False
                 self.ball.flame_timer = 180
 
-            # Rony: ao chutar com auto-goal armado, bola vai direto para o gol
-            for hit, p in [(hit1, self.player1), (hit2, self.player2)]:
-                if hit and p.char_name == "RONY" and p.auto_goal_armed:
-                    # P1 ataca gol direito (x=SCREEN_W), P2 ataca gol esquerdo (x=0)
-                    target_x = SCREEN_W - GOAL_W // 2 if p is self.player1 else GOAL_W // 2
-                    target_y = GOAL_Y + GOAL_H * 0.5
-                    dx       = target_x - self.ball.x
-                    dy       = target_y - self.ball.y
-                    dist     = max(math.hypot(dx, dy), 1.0)
-                    speed    = 35.0
-                    self.ball.vx = dx / dist * speed
-                    self.ball.vy = dy / dist * speed
-                    self.ball.flame_timer = 180
-                    p.auto_goal_armed     = False
 
         for p in self.particles: p.update()
         self.particles = [p for p in self.particles if p.alive]
@@ -1572,6 +1616,7 @@ class GameState:
             p.hat_timer          = 0
             p.invert_timer       = 0
             p.auto_goal_armed    = False
+            p.rony_spin_timer    = 0
         self.sabor_timer = 0
         self.claw_timer  = 0
         self.goal_by = None
