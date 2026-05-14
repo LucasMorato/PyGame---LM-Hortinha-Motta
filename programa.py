@@ -356,10 +356,10 @@ class Player:
     HEIGHT = int(70 * 1.5*1.2)        # 105
     SPEED  = 5
     JUMP_FORCE    = -13
-    KICK_RADIUS   = 90
-    KICK_FORCE    = 8
+    KICK_RADIUS   = 95            # alcance generoso, com filtro direcional no try_kick_ball
+    KICK_FORCE    = 9
     KICK_DURATION = 15
-    COLL_W_FACTOR = 0.68
+    COLL_W_FACTOR = 0.72          # hitbox larga o bastante para casar com o sprite
     COLL_H_FACTOR = 0.94
     ABILITY_COOLDOWN = 1200  # 20 s × 60 fps
     ABILITY_DURATION = 180   # 3 s × 60 fps
@@ -549,18 +549,45 @@ class Player:
                 self.kicking = False
 
     def try_kick_ball(self, ball):
+        """Chute consistente:
+          - usa o CENTRO DO CORPO como referência principal (não só o pé),
+            o que cobre bem chutes em qualquer altura;
+          - se a bola estiver claramente atrás, o chute ainda funciona,
+            mas é tratado como 'calcanhar' (força reduzida e ainda na
+            direção que o jogador encara — nada de bola voando pra trás);
+          - dá um leve loft para chutes rasteiros."""
         if not self.kicking:
             return False
+
         fx, fy = self.foot_center
-        dist = math.hypot(ball.x - fx, ball.y - fy)
-        if dist < self.KICK_RADIUS + BALL_RADIUS:
-            dist = max(dist, 1)
-            dx = (ball.x - fx) / dist
-            dy = (ball.y - fy) / dist
-            ball.vx = dx * self.KICK_FORCE + (self.SPEED if self.facing_right else -self.SPEED)
-            ball.vy = dy * self.KICK_FORCE - 2
-            return True
-        return False
+        # Centro do corpo (mais alto): cobre bola passando na altura do peito
+        body_cx = self.x + self.WIDTH  / 2
+        body_cy = self.y + self.HEIGHT * 0.55
+
+        # Usa a referência mais próxima (pé OU centro do corpo)
+        d_foot = math.hypot(ball.x - fx,      ball.y - fy)
+        d_body = math.hypot(ball.x - body_cx, ball.y - body_cy)
+        if d_foot <= d_body:
+            rx, ry, dist = ball.x - fx,      ball.y - fy,      d_foot
+        else:
+            rx, ry, dist = ball.x - body_cx, ball.y - body_cy, d_body
+
+        if dist >= self.KICK_RADIUS + BALL_RADIUS:
+            return False
+
+        forward = 1.0 if self.facing_right else -1.0
+        behind  = (rx * forward) < -BALL_RADIUS * 0.4    # bola atrás do jogador
+        dist    = max(dist, 1.0)
+        nx, ny  = rx / dist, ry / dist
+
+        # Força base sempre na direção que o jogador encara
+        power = self.KICK_FORCE * (0.55 if behind else 1.0)
+        kick_vx = forward * power * 1.25 + nx * power * 0.35
+        kick_vy = ny * self.KICK_FORCE * 0.55 - 3.2      # leve elevação
+
+        ball.vx = kick_vx + self.vx * 0.5
+        ball.vy = kick_vy
+        return True
 
     def collide_with_player(self, other):
         r1, r2 = self.collision_rect, other.collision_rect
@@ -851,13 +878,18 @@ class Ball:
             self.vx = -abs(self.vx) * self.BOUNCE * 0.4
 
     def collide_with_player(self, player):
-        rect = player.collision_rect
-        cx   = max(rect.left, min(self.x, rect.right))
-        cy   = max(rect.top,  min(self.y, rect.bottom))
+        """Colisão circle vs AABB com pequeno 'skin' para evitar que a bola
+        fique presa dentro do jogador (problema antigo que afetava
+        especialmente o Player 1, que entra mais em contato pelo lado direito)."""
+        rect  = player.collision_rect
+        skin  = 2                   # margem extra para tirar a bola de dentro
+        cx    = max(rect.left, min(self.x, rect.right))
+        cy    = max(rect.top,  min(self.y, rect.bottom))
         dx, dy  = self.x - cx, self.y - cy
         dist_sq = dx * dx + dy * dy
 
-        if dist_sq == 0:
+        if dist_sq < 1e-4:
+            # Bola dentro do retângulo: empurra pelo lado mais próximo.
             if not rect.collidepoint(self.x, self.y):
                 return
             distances = {
@@ -865,13 +897,14 @@ class Ball:
                 "t": self.y - rect.top,  "b": rect.bottom - self.y,
             }
             side = min(distances, key=distances.get)
-            maps = {"l": (-1, 0, "l"), "r": (1, 0, "r"), "t": (0, -1, "t"), "b": (0, 1, "b")}
+            maps = {"l": (-1, 0, "l"), "r": (1, 0, "r"),
+                    "t": (0, -1, "t"), "b": (0, 1, "b")}
             nx, ny, k = maps[side]
-            overlap = BALL_RADIUS + distances[k]
-        elif dist_sq < BALL_RADIUS * BALL_RADIUS:
+            overlap = BALL_RADIUS + distances[k] + skin
+        elif dist_sq < (BALL_RADIUS + skin) * (BALL_RADIUS + skin):
             dist = math.sqrt(dist_sq)
             nx, ny  = dx / dist, dy / dist
-            overlap = BALL_RADIUS - dist
+            overlap = (BALL_RADIUS + skin) - dist
         else:
             return
 
@@ -881,10 +914,19 @@ class Ball:
             self.y  = GROUND_Y - BALL_RADIUS
             self.vy = -abs(self.vy) * self.BOUNCE
 
-        dot = (self.vx - player.vx) * nx + (self.vy - player.vy) * ny
+        # Resposta de colisão no referencial do jogador (impede penetração
+        # e dá um repique mais natural quando o jogador anda na bola).
+        rvx = self.vx - player.vx
+        rvy = self.vy - player.vy
+        dot = rvx * nx + rvy * ny
         if dot < 0:
-            self.vx -= dot * nx * 1.4
-            self.vy -= dot * ny * 1.4
+            self.vx -= dot * nx * 1.6
+            self.vy -= dot * ny * 1.6
+        # Garante velocidade mínima de afastamento para não 'colar'
+        sep_speed = self.vx * nx + self.vy * ny
+        if sep_speed < 1.5:
+            self.vx += nx * (1.5 - sep_speed)
+            self.vy += ny * (1.5 - sep_speed)
 
     def draw(self, surface):
         ix, iy = int(self.x), int(self.y)
@@ -1324,47 +1366,89 @@ class GameState:
                 pygame.draw.circle(glow, (255, 245, 180, a // 5), (55, 35), r)
             surf.blit(glow, (lx - 55, sky_h - 30))
 
-        # ─── Arquibancada em 3 níveis ──────────────────────────
-        crowd_top = sky_h + 12
-        crowd_bot = GROUND_Y - GOAL_H - 30
-        tier_h    = (crowd_bot - crowd_top) // 3
+        # ─── Arquibancada (agora 5 níveis, mais densa) ─────────
+        # Ocupa muito mais espaço vertical — antes restavam ~240px de
+        # gramado vazio; agora a torcida desce quase até o nível do gol.
+        crowd_top = sky_h + 10
+        crowd_bot = GOAL_Y - 6        # desce até quase tocar o travessão
+        n_tiers   = 5
+        tier_h    = (crowd_bot - crowd_top) // n_tiers
 
         crowd_palette = [
             (210, 60, 60), (60, 80, 210), (230, 200, 50),
             (60, 180, 60), (220, 220, 220), (180, 80, 200),
             (40, 40, 40), (210, 110, 30), (40, 200, 220),
+            (255, 130, 40), (140, 60, 200), (240, 240, 240),
         ]
-        for tier in range(3):
+        for tier in range(n_tiers):
             ty1 = crowd_top + tier * tier_h
-            ty2 = ty1 + tier_h - 5
-            shade = 0.5 + 0.18 * tier
+            ty2 = ty1 + tier_h - 4
+            shade = 0.45 + 0.14 * tier
             tier_bg = (int(20*shade), int(20*shade), int(48*shade))
-            pygame.draw.rect(surf, tier_bg, (0, ty1, SCREEN_W, tier_h - 5))
+            pygame.draw.rect(surf, tier_bg, (0, ty1, SCREEN_W, tier_h - 4))
 
-            for cx in range(0, SCREEN_W, 5):
-                for cy in range(ty1+2, ty2-1, 4):
-                    if rng.random() > 0.32:
+            # Mais cabeças por nível (passo menor → torcida densa)
+            for cx in range(0, SCREEN_W, 4):
+                for cy in range(ty1+2, ty2-1, 3):
+                    if rng.random() > 0.22:        # mais ocupação que antes (0.32)
                         base = crowd_palette[rng.randint(0, len(crowd_palette)-1)]
-                        fade = 0.45 + 0.18 * tier
-                        c = tuple(int(v * fade) for v in base)
+                        fade = 0.50 + 0.10 * tier   # max ~0.90 com 5 tiers
+                        c = tuple(max(0, min(255, int(v * fade))) for v in base)
                         pygame.draw.rect(surf, c, (cx, cy, 3, 2))
-            pygame.draw.rect(surf, (3, 3, 10), (0, ty2, SCREEN_W, 4))
+            # Linha divisória entre tiers
+            pygame.draw.rect(surf, (3, 3, 10), (0, ty2, SCREEN_W, 3))
+            # Corrimão sutil em alguns tiers
+            if tier < n_tiers - 1:
+                pygame.draw.rect(surf, (90, 95, 115),
+                                 (0, ty2 + 1, SCREEN_W, 1))
 
-        # ─── Placas de publicidade (cima do campo) ─────────────
-        ad_y = crowd_bot - 4
-        ad_h = 22
+        # ─── Placas de patrocínio (TÉRREO — bem maiores) ───────
+        # As placas ficam logo abaixo da arquibancada e antes do gramado.
+        # 3 marcas em rotação: EASTEREGG, NOVA QUATÁ, SABOR.
+        ad_y = crowd_bot
+        ad_h = 54                              # antes 22 — muito mais visível
+        # Faixa preta de moldura
         pygame.draw.rect(surf, (5, 5, 15), (0, ad_y, SCREEN_W, ad_h))
-        ad_palette = [(220, 50, 50), (50, 100, 220), (240, 200, 0),
-                      (50, 180, 80), (180, 80, 180), (210, 110, 30),
-                      (40, 200, 220), (240, 240, 240)]
-        ad_count = 8
-        ad_w = SCREEN_W // ad_count
+
+        sponsors = [
+            ("EASTEREGG", (15, 15, 30),   (255, 215, 0),  (255, 90, 0)),
+            ("NOVA QUATÁ", (10, 35, 90),  (255, 255, 255),(120, 200, 255)),
+            ("SABOR",     (140, 25, 35),  (255, 240, 200),(255, 180, 60)),
+        ]
+        ad_count = 6                            # menos placas, cada uma maior
+        ad_w     = SCREEN_W // ad_count
+        try:
+            ad_font_big   = pygame.font.SysFont("couriernew", 22, bold=True)
+            ad_font_small = pygame.font.SysFont("couriernew", 14, bold=True)
+        except Exception:
+            ad_font_big   = pygame.font.Font(None, 26)
+            ad_font_small = pygame.font.Font(None, 16)
+
         for i in range(ad_count):
             ax = i * ad_w
-            ac = ad_palette[i % len(ad_palette)]
-            pygame.draw.rect(surf, ac, (ax+2, ad_y+3, ad_w-4, ad_h-6))
-            pygame.draw.rect(surf, (255, 255, 255, 80),
-                             (ax+2, ad_y+3, ad_w-4, 2))
+            name, bg_col, fg_col, accent = sponsors[i % len(sponsors)]
+            # Fundo da placa
+            pygame.draw.rect(surf, bg_col, (ax + 3, ad_y + 4, ad_w - 6, ad_h - 8))
+            # Faixa de destaque superior e inferior
+            pygame.draw.rect(surf, accent, (ax + 3, ad_y + 4,           ad_w - 6, 4))
+            pygame.draw.rect(surf, accent, (ax + 3, ad_y + ad_h - 8,    ad_w - 6, 4))
+            # Borda externa
+            pygame.draw.rect(surf, (240, 240, 250),
+                             (ax + 3, ad_y + 4, ad_w - 6, ad_h - 8), 2)
+            # Texto do patrocinador (com sombra)
+            txt   = ad_font_big.render(name, True, fg_col)
+            txt_s = ad_font_big.render(name, True, (0, 0, 0))
+            tx = ax + ad_w // 2 - txt.get_width() // 2
+            ty = ad_y + ad_h // 2 - txt.get_height() // 2
+            surf.blit(txt_s, (tx + 2, ty + 2))
+            surf.blit(txt,   (tx,     ty))
+            # Tagline pequena
+            tag_map = {"EASTEREGG":  "",
+                       "NOVA QUATÁ": "",
+                       "SABOR":      ""}
+            tag = ad_font_small.render(tag_map.get(name, ""), True, accent)
+            surf.blit(tag, (ax + ad_w // 2 - tag.get_width() // 2,
+                            ad_y + ad_h - 16))
 
         # ─── Gramado (verde vivo, sem listras) ─────────────────
         field_top   = ad_y + ad_h
