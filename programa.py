@@ -74,16 +74,26 @@ DEPTH_TOP   = 14                      # Quanto o "fundo" do gol é mais baixo (p
 CONTROLS_P1 = {"left": pygame.K_a, "right": pygame.K_d, "jump": pygame.K_w, "kick": pygame.K_q, "ability": pygame.K_e}
 CONTROLS_P2 = {"left": pygame.K_LEFT, "right": pygame.K_RIGHT, "jump": pygame.K_UP, "kick": pygame.K_SEMICOLON, "ability": pygame.K_RSHIFT}
 
-# ─── Scanline surface (pre-built) ────────────────────────────
-_SCANLINE_SURF = None
+# ─── Vignette surface (substitui as antigas scanlines) ───────
+_VIGNETTE_SURF = None
 
-def get_scanline_surf():
-    global _SCANLINE_SURF
-    if _SCANLINE_SURF is None:
-        _SCANLINE_SURF = pygame.Surface((SCREEN_W, SCREEN_H), pygame.SRCALPHA)
-        for y in range(0, SCREEN_H, 3):
-            pygame.draw.rect(_SCANLINE_SURF, (0, 0, 0, 55), (0, y, SCREEN_W, 1))
-    return _SCANLINE_SURF
+def get_vignette_surf():
+    """Vinheta suave nas bordas: dá profundidade sem as faixas horizontais
+    das antigas scanlines, que pesavam o visual."""
+    global _VIGNETTE_SURF
+    if _VIGNETTE_SURF is None:
+        _VIGNETTE_SURF = pygame.Surface((SCREEN_W, SCREEN_H), pygame.SRCALPHA)
+        cx, cy = SCREEN_W / 2, SCREEN_H / 2
+        max_d = math.hypot(cx, cy)
+        step = 6
+        for y in range(0, SCREEN_H, step):
+            for x in range(0, SCREEN_W, step):
+                d = math.hypot(x - cx, y - cy) / max_d
+                if d > 0.55:
+                    a = int(min(110, (d - 0.55) * 230))
+                    pygame.draw.rect(_VIGNETTE_SURF, (0, 0, 0, a),
+                                     (x, y, step, step))
+    return _VIGNETTE_SURF
 
 
 # ============================================================
@@ -381,6 +391,7 @@ class Player:
         self.auto_goal_armed     = False    # (não usado mais)
         self.invert_timer        = 0        # Cedric: controles invertidos
         self.rony_spin_timer     = 0        # Rony: voa no ar + girando 360°
+        self._rony_spin_total    = 0        # Duração total do giro (para easing)
 
         ip = char_data.get("image")
         if ip and os.path.exists(ip):
@@ -612,6 +623,21 @@ class Player:
         draw_x = int(self.x + w / 2 - eff_w / 2)
         draw_y = int(self.y + h - eff_h)
 
+        # ── Sombra de chão: escala/diminui com a altura do pulo ──
+        # Ajuda a ler a posição vertical do jogador (especialmente no spin do Rony).
+        feet_y     = self.y + self.HEIGHT
+        air_amount = max(0.0, min(1.0, (GROUND_Y - feet_y) / 220.0))
+        sh_w       = int(eff_w * (0.65 - 0.35 * air_amount))
+        sh_h       = max(4, int(10 - 6 * air_amount))
+        sh_alpha   = int(140 * (1.0 - 0.55 * air_amount))
+        if sh_w > 4:
+            sh_surf = pygame.Surface((sh_w, sh_h), pygame.SRCALPHA)
+            pygame.draw.ellipse(sh_surf, (0, 0, 0, sh_alpha),
+                                (0, 0, sh_w, sh_h))
+            surface.blit(sh_surf,
+                         (int(self.x + w / 2 - sh_w / 2),
+                          GROUND_Y - sh_h // 2))
+
         self._draw_aura(surface, draw_x, draw_y, eff_w, eff_h)
         if self.float_timer > 0:
             self._draw_hurricane_effect(surface, draw_x, draw_y, eff_w, eff_h)
@@ -624,19 +650,30 @@ class Player:
                         else pygame.transform.smoothscale(self.image, (iw, ih)))
             if not self.facing_right:
                 img = pygame.transform.flip(img, True, False)
-            # Rony: vira de ponta-cabeça (flip vertical)
-            if self.upside_down_timer > 0:
+            # Rony: vira de ponta-cabeça (flip vertical) — só fora do giro,
+            # senão o flip somado à rotação cria uma volta e meia visual.
+            if self.upside_down_timer > 0 and self.rony_spin_timer == 0:
                 img = pygame.transform.flip(img, False, True)
             # Centraliza horizontalmente; alinha "pés" no chão do player
             blit_x = int(self.x + w / 2 - iw / 2)
             blit_y = int(self.y + h - ih)
-            # Rony spin: rotação 360° contínua
+            # Rony spin: UMA volta completa (0° -> 360°) ao longo do timer,
+            # com easing suave (mais rápido no meio, lento nos extremos).
             if self.rony_spin_timer > 0:
-                progress = 1.0 - (self.rony_spin_timer / 120.0)
-                spin_deg = progress * 360.0       # giro completo em 2 s
+                progress = 1.0 - (self.rony_spin_timer / float(self._rony_spin_total or 1))
+                progress = max(0.0, min(1.0, progress))
+                # easeInOutSine: começa devagar, acelera, termina devagar
+                eased = 0.5 - 0.5 * math.cos(progress * math.pi)
+                # Inverte o sentido conforme a direção que ele encara
+                direction = -1.0 if self.facing_right else 1.0
+                spin_deg = direction * eased * 360.0
                 rot_img  = pygame.transform.rotate(img, spin_deg)
                 rect_r   = rot_img.get_rect(center=(blit_x + iw // 2,
                                                     blit_y + ih // 2))
+                # Rastro de movimento sutil atrás do giro
+                trail = rot_img.copy()
+                trail.set_alpha(70)
+                surface.blit(trail, (rect_r.left - 8, rect_r.top))
                 surface.blit(rot_img, rect_r.topleft)
             else:
                 surface.blit(img, (blit_x, blit_y))
@@ -717,10 +754,20 @@ class Ball:
         self.angle     = 0.0
         self.locked_to = None
         self.flame_timer = 0
+        self.trail = []        # posições recentes para o rastro
 
     def update(self, players=()):
         if self.flame_timer > 0:
             self.flame_timer -= 1
+
+        # Atualiza rastro a partir da velocidade atual
+        speed_now = math.hypot(self.vx, self.vy)
+        if speed_now > 5.5 and self.locked_to is None:
+            self.trail.append((self.x, self.y))
+            if len(self.trail) > 8:
+                self.trail.pop(0)
+        elif self.trail:
+            self.trail.pop(0)
 
         if self.locked_to is not None:
             p = self.locked_to
@@ -842,6 +889,17 @@ class Ball:
     def draw(self, surface):
         ix, iy = int(self.x), int(self.y)
         r      = BALL_RADIUS
+
+        # ── Rastro (motion trail) ─────────────────────────────
+        if self.trail:
+            trail_surf = pygame.Surface((SCREEN_W, SCREEN_H), pygame.SRCALPHA)
+            for i, (tx, ty) in enumerate(self.trail):
+                frac = (i + 1) / len(self.trail)
+                tr   = max(3, int(r * (0.45 + 0.45 * frac)))
+                alpha = int(50 * frac)
+                pygame.draw.circle(trail_surf, (255, 255, 255, alpha),
+                                   (int(tx), int(ty)), tr)
+            surface.blit(trail_surf, (0, 0))
 
         if self.flame_timer > 0:
             t     = pygame.time.get_ticks()
@@ -1006,7 +1064,7 @@ class IntroState:
         for ccx, ccy in [(6,6),(SCREEN_W-10,6),(6,SCREEN_H-10),(SCREEN_W-10,SCREEN_H-10)]:
             pygame.draw.rect(surface, WHITE, (ccx, ccy, 4, 4))
 
-        surface.blit(get_scanline_surf(), (0, 0))
+        surface.blit(get_vignette_surf(), (0, 0))
 
 
 # ============================================================
@@ -1200,7 +1258,7 @@ class CharSelectState:
             surface.blit(hint, (SCREEN_W//2 - hint.get_width()//2, bottom_y+6))
 
         pygame.draw.rect(surface, YELLOW, (4, 4, SCREEN_W-8, SCREEN_H-8), 3)
-        surface.blit(get_scanline_surf(), (0, 0))
+        surface.blit(get_vignette_surf(), (0, 0))
 
 
 # ============================================================
@@ -1559,13 +1617,15 @@ class GameState:
                 self.ball.vx = 0.0
                 self.ball.vy = 0.0
             elif player.char_name == "RONY" and player.ability_armed:
-                # Rony: voa, vira de ponta cabeça, gira 360°,
-                # bola gruda nele e ao final é arremessada direto para o gol.
+                # Rony: voa, dá UMA volta completa (bicicleta) e chuta a bola
+                # direto para o gol. A rotação já passa naturalmente pela
+                # posição de cabeça-pra-baixo no meio do giro.
                 player.ability_armed = False
-                spin_dur             = 120          # 2 segundos de show
-                player.ability_timer    = spin_dur
-                player.upside_down_timer = spin_dur
-                player.rony_spin_timer   = spin_dur
+                spin_dur             = 90           # 1,5 s — giro mais ágil
+                player.ability_timer       = spin_dur
+                player.rony_spin_timer     = spin_dur
+                player._rony_spin_total    = spin_dur
+                player.upside_down_timer   = 0      # rotação já cuida disso
                 # Tira do chão e fixa em altura elevada
                 player.vx = 0.0
                 player.vy = 0.0
@@ -1639,6 +1699,7 @@ class GameState:
             p.invert_timer       = 0
             p.auto_goal_armed    = False
             p.rony_spin_timer    = 0
+            p._rony_spin_total   = 0
         self.sabor_timer = 0
         self.claw_timer  = 0
         self.goal_by = None
@@ -1834,10 +1895,10 @@ class GameState:
                          (tr_x-10,tr_y,20,6)]:
                 pygame.draw.rect(surface, GOLD, blk)
 
-            rt = f_sm.render("R = REMATCH     ESC = MENU", False, WHITE)
+            rt = f_sm.render("R = REMATCH    M = MAIN MENU    ESC = CHARACTERS", False, WHITE)
             surface.blit(rt, (SCREEN_W//2 - rt.get_width()//2, SCREEN_H//2+56))
 
-        surface.blit(get_scanline_surf(), (0, 0))
+        surface.blit(get_vignette_surf(), (0, 0))
 
 
 # ============================================================
@@ -1872,7 +1933,10 @@ def main():
                 if event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_ESCAPE:
                         state = CharSelectState()
-                    if event.key == pygame.K_r and state.game_over:
+                    elif event.key == pygame.K_m and state.game_over:
+                        # M = volta direto para a tela inicial (intro)
+                        state = IntroState()
+                    elif event.key == pygame.K_r and state.game_over:
                         state = GameState(state.p1_idx, state.p2_idx)
 
         keys = pygame.key.get_pressed()

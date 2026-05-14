@@ -1,9 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(python -c \"import ast; ast.parse\\(open\\('programa.py'\\).read\\(\\)\\); print\\('Sintaxe OK'\\)\")",
-      "Bash(python3 -c \"import ast; ast.parse\\(open\\('programa.py'\\).read\\(\\)\\); print\\('Sintaxe OK'\\)\")",
-      "Bash(py -c \"import ast; ast.parse\\(open\\('programa.py'\\).read\\(\\)\\); print\\('Sintaxe OK'\\)\")"
-    ]
-  }
-}
