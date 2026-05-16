@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(& \"C:\\\\Users\\\\belho\\\\anaconda3\\\\python.exe\" -m py_compile programa.py)",
+      "PowerShell(if \\($?\\) { \"OK\" } else { \"FAIL\" })"
+    ]
+  }
+}

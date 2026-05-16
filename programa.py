@@ -359,8 +359,8 @@ class Player:
     KICK_RADIUS   = 95            # alcance generoso, com filtro direcional no try_kick_ball
     KICK_FORCE    = 9
     KICK_DURATION = 15
-    COLL_W_FACTOR = 0.72          # hitbox larga o bastante para casar com o sprite
-    COLL_H_FACTOR = 0.94
+    COLL_W_FACTOR = 0.62          # hitbox um pouco mais justa que antes (era 0.72)
+    COLL_H_FACTOR = 0.92
     ABILITY_COOLDOWN = 1200  # 20 s × 60 fps
     ABILITY_DURATION = 180   # 3 s × 60 fps
 
@@ -813,8 +813,24 @@ class Ball:
         dt        = 1.0 / n_steps
         for _ in range(n_steps):
             self._step_move(dt)
-            for p in players:
-                self.collide_with_player(p)
+            # Resolve colisões com cada jogador várias vezes até estabilizar.
+            # Isso impede que empurrar a bola contra um jogador a faça
+            # atravessar o outro (problema clássico de "sandwich").
+            for _pass in range(4):
+                touched = 0
+                for p in players:
+                    if self.collide_with_player(p):
+                        touched += 1
+                if touched == 0:
+                    break
+            # Detecta sanduíche: se a bola ainda está sobreposta aos dois
+            # jogadores ao mesmo tempo, ejeta para cima (por onde os corpos
+            # não estão se apertando).
+            if len(players) == 2:
+                p1, p2 = players
+                if (self._overlapping(p1) and self._overlapping(p2)):
+                    self.y  = min(self.y, p1.collision_rect.top, p2.collision_rect.top) - BALL_RADIUS - 2
+                    self.vy = -abs(self.vy) - 6.0
 
     def _step_move(self, dt):
         self.vy    += GRAVITY * 0.50 * dt
@@ -877,12 +893,23 @@ class Ball:
             self.x  = float(SCREEN_W - BALL_RADIUS)
             self.vx = -abs(self.vx) * self.BOUNCE * 0.4
 
+    def _overlapping(self, player):
+        """True se a bola está sobreposta ao hitbox (com a margem do skin)."""
+        rect = player.collision_rect
+        cx   = max(rect.left, min(self.x, rect.right))
+        cy   = max(rect.top,  min(self.y, rect.bottom))
+        dx, dy = self.x - cx, self.y - cy
+        r = BALL_RADIUS + 1
+        if dx * dx + dy * dy < r * r:
+            return True
+        return rect.collidepoint(self.x, self.y)
+
     def collide_with_player(self, player):
-        """Colisão circle vs AABB com pequeno 'skin' para evitar que a bola
-        fique presa dentro do jogador (problema antigo que afetava
-        especialmente o Player 1, que entra mais em contato pelo lado direito)."""
+        """Colisão circle vs AABB com 'skin' para evitar penetração.
+        Retorna True se resolveu uma colisão (usado pelo loop iterativo
+        em update() para impedir tunneling em sanduíche)."""
         rect  = player.collision_rect
-        skin  = 2                   # margem extra para tirar a bola de dentro
+        skin  = 3                   # margem extra para tirar a bola de dentro
         cx    = max(rect.left, min(self.x, rect.right))
         cy    = max(rect.top,  min(self.y, rect.bottom))
         dx, dy  = self.x - cx, self.y - cy
@@ -891,7 +918,7 @@ class Ball:
         if dist_sq < 1e-4:
             # Bola dentro do retângulo: empurra pelo lado mais próximo.
             if not rect.collidepoint(self.x, self.y):
-                return
+                return False
             distances = {
                 "l": self.x - rect.left, "r": rect.right  - self.x,
                 "t": self.y - rect.top,  "b": rect.bottom - self.y,
@@ -906,7 +933,7 @@ class Ball:
             nx, ny  = dx / dist, dy / dist
             overlap = (BALL_RADIUS + skin) - dist
         else:
-            return
+            return False
 
         self.x += nx * overlap
         self.y += ny * overlap
@@ -927,6 +954,7 @@ class Ball:
         if sep_speed < 1.5:
             self.vx += nx * (1.5 - sep_speed)
             self.vy += ny * (1.5 - sep_speed)
+        return True
 
     def draw(self, surface):
         ix, iy = int(self.x), int(self.y)
@@ -1733,10 +1761,17 @@ class GameState:
                 self.player1.invert_timer = 300
                 self.player2.invert_timer = 300
 
+        # Resolve o overlap entre os jogadores ANTES da bola atualizar.
+        # Sem isso, quando os dois se encostam a bola pode ficar 'sanduichada'
+        # entre eles e o resolver da bola empurra ela através de um dos corpos.
+        self.player1.collide_with_player(self.player2)
+
         # Colisão bola↔jogador agora roda dentro dos substeps do update,
         # evitando que a bola atravesse os personagens em chutes fortes.
         self.ball.update((self.player1, self.player2))
 
+        # Re-separa após a bola, defensivo (a bola pode ter empurrado um
+        # dos corpos via 'penetration push').
         self.player1.collide_with_player(self.player2)
         if self.ball.locked_to is None:
             hit1 = self.player1.try_kick_ball(self.ball)
